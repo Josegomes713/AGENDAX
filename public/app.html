@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGENDA X — Painel</title>
+<meta name="theme-color" content="#120d22">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AGENDA X">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side" id="side" aria-label="Menu principal"></aside>
+  <div class="scrim" id="scrim" data-act="menu-fechar"></div>
+  <div class="main">
+    <header class="topbar">
+      <button class="burger" data-act="menu-abrir" aria-label="Abrir menu"><svg viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg></button>
+      <h1 id="titulo">Painel</h1>
+      <button class="btn sm primary hide" data-install id="b-install">Instalar app</button>
+      <div class="bell">
+        <button class="btn ghost" data-act="notif-abrir" aria-label="Notificações" id="b-bell"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="cnt hide" id="cnt">0</span></button>
+        <div class="notif-panel hide" id="notif-panel"></div>
+      </div>
+    </header>
+    <div id="banner"></div>
+    <main class="content" id="view" tabindex="-1"></main>
+  </div>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<script src="/js/aparencia.js"></script>
+<script src="/js/core.js"></script>
+<script src="/js/views1.js"></script>
+<script src="/js/views2.js"></script>
+<script src="/js/manual.js"></script>
+<script src="/js/admin.js"></script>
+<script src="/js/alerta.js"></script>
+<script src="/js/main.js"></script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

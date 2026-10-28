@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGENDA X — Agendamentos inteligentes para barbearias, salões e clínicas</title>
+<meta name="description" content="Sua agenda, seu negócio, seu crescimento. Agenda online, clientes, financeiro e comissões para barbearias, salões, manicures e esteticistas. 14 dias grátis com tudo liberado.">
+<meta name="theme-color" content="#120d22">
+<meta property="og:title" content="AGENDA X — Agendamentos inteligentes">
+<meta property="og:description" content="Seus clientes agendam sozinhos pelo link, 24 horas por dia. 14 dias grátis com tudo liberado.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body class="mk">
+<header class="mk-nav" id="topo">
+  <div class="mk-wrap mk-nav-in">
+    <a class="logo" href="/">AGENDA <b>X</b></a>
+    <nav class="mk-links" aria-label="Seções">
+      <a href="#recursos">Recursos</a><a href="#como-funciona">Como funciona</a><a href="#planos">Planos</a><a href="#perguntas">Perguntas</a>
+    </nav>
+    <div class="mk-nav-cta">
+      <button class="btn ghost light" data-cta="login">Entrar</button>
+      <button class="btn primary" data-cta="reg">Começar grátis</button>
+      <button class="btn sm primary hide" data-install>Instalar app</button>
+    </div>
+  </div>
+</header>
+
+<section class="mk-hero">
+  <div class="mk-wrap mk-hero-in">
+    <div class="mk-hero-txt">
+      <span class="mk-pill">14 dias grátis com tudo liberado, sem cartão</span>
+      <h1>Sua agenda, seu negócio, seu crescimento.</h1>
+      <p>O sistema de agendamentos para barbearias, salões, manicures e esteticistas. Organize horários, clientes e finanças em um só lugar, e deixe seus clientes marcarem sozinhos pelo link, 24 horas por dia.</p>
+      <ul class="auth-points">
+        <li>Agenda que impede dois clientes no mesmo horário</li>
+        <li>Página própria com seus serviços, fotos, preços e duração</li>
+        <li>Comissões, financeiro e relatórios sem planilha</li>
+      </ul>
+      <div class="mk-hero-btns"><button class="btn primary lg" data-cta="reg">Criar conta grátis</button><a class="btn lg outline-light" href="#como-funciona">Ver como funciona</a></div>
+    </div>
+    <div class="mk-hero-card">
+<div class="auth-card">
+          <div id="v-inicio">
+            <h2>Bem-vindo ao AGENDA <b style="color:var(--p)">X</b></h2>
+            <p class="sub">Sua agenda, seu negócio, seu crescimento.</p>
+            <div id="lembrada" class="lembrada hide">
+              <div class="av" id="lb-av">?</div>
+              <div class="grow"><div class="muted small">Bem-vindo de volta</div><b id="lb-nome"></b><div class="muted small" id="lb-email"></div></div>
+            </div>
+            <button class="btn primary lg" style="width:100%" type="button" id="b-continuar" data-go="login">Entrar na minha conta</button>
+            <button class="btn lg" style="width:100%;margin-top:10px" type="button" data-go="reg">Criar uma conta</button>
+            <p class="center mt-s muted hide" id="lb-outra"><a href="#" id="b-outra">Não sou eu · usar outra conta</a></p>
+            <p class="hint center mt">14 dias grátis com tudo liberado, sem cartão de crédito.</p>
+            <p class="center mt-s"><a href="#" data-go="adm" class="adm-link">Administrador</a></p>
+          </div>
+          <div id="v-adm" class="hide">
+            <h2>Administrador</h2>
+            <p class="sub">Acesso exclusivo do proprietário.</p>
+            <form id="f-adm" novalidate>
+              <div id="e-adm" class="err hide" role="alert"></div>
+              <div class="field"><label class="f" for="a-email">E-mail</label><input class="inp" id="a-email" type="email" autocomplete="email" required></div>
+              <div class="field"><label class="f" for="a-senha">Senha</label><input class="inp" id="a-senha" type="password" autocomplete="current-password" required><div class="hint">No primeiro acesso, a senha que você digitar passa a ser a do administrador.</div></div>
+              <button class="btn primary" style="width:100%" id="b-adm">Entrar como administrador</button>
+            </form>
+            <p class="center mt-s small"><a href="#" data-go="inicio">← Voltar</a></p>
+          </div>
+          <div id="v-login" class="hide">
+            <h2>Entrar</h2>
+            <p class="sub">Acesse o painel do seu estabelecimento.</p>
+            <form id="f-login" novalidate>
+              <div id="e-login" class="err hide" role="alert"></div>
+              <div class="field"><label class="f" for="l-email">E-mail</label><input class="inp" id="l-email" type="email" autocomplete="email" required></div>
+              <div class="field"><label class="f" for="l-senha">Senha</label><input class="inp" id="l-senha" type="password" autocomplete="current-password" required></div>
+              <label class="chk" style="margin:2px 0 12px"><input type="checkbox" id="l-manter" checked> Manter conectado neste aparelho</label>
+              <button class="btn primary" style="width:100%" id="b-login">Entrar</button>
+            </form>
+            <p class="center mt-s muted"><a href="#" data-go="rec">Esqueci minha senha</a></p>
+            <p class="center mt muted">Ainda não tem conta? <a href="#" data-go="reg">Comece 14 dias grátis</a></p>
+            <p class="center mt-s small"><a href="#" data-go="inicio">← Voltar</a></p>
+          </div>
+          <div id="v-reg" class="hide">
+            <h2>Crie sua conta</h2>
+            <p class="sub">14 dias grátis com tudo liberado, sem cartão. Depois, assine um plano (a partir de R$ 20/mês) ou continue no plano Grátis.</p>
+            <form id="f-reg" novalidate>
+              <div id="e-reg" class="err hide" role="alert"></div>
+              <div id="r-existe" class="card hide" style="margin:0 0 12px;padding:12px;background:var(--p-50)"><b>Você já tem conta com este e-mail.</b><div class="row mt-s"><button class="btn primary sm" type="button" id="b-existe-entrar">Entrar com este e-mail</button><button class="btn sm" type="button" id="b-existe-rec">Esqueci minha senha</button></div></div>
+              <div class="field"><label class="f" for="r-est">Nome do estabelecimento</label><input class="inp" id="r-est" maxlength="80" placeholder="Ex.: Barbearia do Zé" required></div>
+              <div class="field"><label class="f" for="r-nome">Seu nome</label><input class="inp" id="r-nome" maxlength="80" autocomplete="name" required></div>
+              <div class="field"><label class="f" for="r-email">E-mail</label><input class="inp" id="r-email" type="email" autocomplete="email" required><div class="hint" id="r-email-dica" aria-live="polite"></div></div>
+              <div class="field"><label class="f" for="r-senha">Senha</label><input class="inp" id="r-senha" type="password" autocomplete="new-password" minlength="8" required><div class="hint">Mínimo de 8 caracteres.</div></div>
+              <div class="field"><label class="f">Plano que pretende assinar depois</label>
+                <div class="plan-pick">
+                  <label><input type="radio" name="plano" value="basico"><b>Básico</b>R$ 20</label>
+                  <label><input type="radio" name="plano" value="profissional" checked><b>Profissional</b>R$ 37,90</label>
+                  <label><input type="radio" name="plano" value="premium"><b>Premium</b>R$ 59,90</label>
+                </div>
+                <div class="hint">Durante os 14 dias todos os recursos ficam liberados. Você pode trocar de plano a qualquer momento.</div>
+              </div>
+              <p class="hint">Ao criar a conta você concorda com os <a href="/termos.html" target="_blank" rel="noopener">Termos de uso</a> e a <a href="/privacidade.html" target="_blank" rel="noopener">Política de privacidade</a>.</p>
+              <label class="chk" style="margin:2px 0 12px"><input type="checkbox" id="r-manter" checked> Manter conectado neste aparelho</label>
+              <button class="btn primary" style="width:100%" id="b-reg">Criar conta e começar</button>
+            </form>
+            <p class="center mt muted">Já tem conta? <a href="#" data-go="login">Entrar</a></p>
+            <p class="center mt-s small"><a href="#" data-go="inicio">← Voltar</a></p>
+          </div>
+          <div id="v-rec" class="hide">
+            <h2>Recuperar senha</h2>
+            <p class="sub">Use o código de recuperação que apareceu quando você criou a conta (ou que gerou em Minha conta).</p>
+            <form id="f-rec" novalidate>
+              <div id="e-rec" class="err hide" role="alert"></div>
+              <div class="field"><label class="f" for="rc-email">E-mail</label><input class="inp" id="rc-email" type="email" autocomplete="email" required></div>
+              <div class="field"><label class="f" for="rc-cod">Código de recuperação</label><input class="inp" id="rc-cod" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX" required></div>
+              <div class="field"><label class="f" for="rc-nova">Nova senha</label><input class="inp" id="rc-nova" type="password" autocomplete="new-password" minlength="8" required><div class="hint">Mínimo de 8 caracteres.</div></div>
+              <button class="btn primary" style="width:100%" id="b-rec">Redefinir senha</button>
+            </form>
+            <p class="center mt muted"><a href="#" data-go="login">Voltar para entrar</a></p>
+          </div>
+          <div id="v-cod" class="hide">
+            <h2>Guarde este código</h2>
+            <p class="sub">É o seu <b>código de recuperação de senha</b>. Ele aparece só agora. Anote ou tire uma foto e guarde em local seguro.</p>
+            <div class="card center" style="margin:14px 0"><b id="cod-txt" class="num" style="font-size:22px;letter-spacing:1px;user-select:all"></b></div>
+            <button class="btn" style="width:100%;margin-bottom:10px" id="b-cod-copiar" type="button">Copiar código</button>
+            <button class="btn primary" style="width:100%" id="b-cod-ok" type="button">Já guardei, continuar</button>
+          </div>
+        </div>
+    </div>
+  </div>
+</section>
+
+<section class="mk-sec" id="recursos">
+  <div class="mk-wrap">
+    <h2 class="mk-h2">Tudo o que seu negócio precisa para atender melhor</h2>
+    <p class="mk-sub">Do primeiro clique do cliente ao fechamento do mês.</p>
+    <div class="mk-grid">
+      <article class="mk-feat"><i><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></i><h3>Agenda inteligente</h3><p>Grade por profissional, com bloqueio automático de conflitos. Crie, remarque e cancele em poucos toques.</p></article>
+      <article class="mk-feat"><i><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></i><h3>Agendamento online</h3><p>Um link só seu. O cliente escolhe serviço, profissional e horário livre, sem baixar nada.</p></article>
+      <article class="mk-feat"><i><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12"/></svg></i><h3>Serviços com foto</h3><p>Nome, descrição, preço e duração aparecem na sua página. Quem vê, escolhe e agenda.</p></article>
+      <article class="mk-feat"><i><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></i><h3>Clientes e histórico</h3><p>Cadastro completo, busca rápida e histórico de cada atendimento para atender como um velho conhecido.</p></article>
+      <article class="mk-feat"><i><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg></i><h3>Equipe e horários</h3><p>Cada profissional com seus serviços, dias e horários de trabalho, e cor própria na agenda.</p></article>
+      <article class="mk-feat"><i><svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></i><h3>Financeiro</h3><p>Receitas que entram sozinhas quando você conclui o atendimento, mais despesas e saldo do período.</p></article>
+      <article class="mk-feat"><i><svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></i><h3>Comissões</h3><p>Defina o percentual de cada profissional e veja quanto pagar, sem conta de cabeça.</p></article>
+      <article class="mk-feat"><i><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg></i><h3>Avisos dentro do app</h3><p>Novos agendamentos, cancelamentos e lembretes chegam no próprio sistema, sem depender de WhatsApp.</p></article>
+    </div>
+  </div>
+</section>
+
+<section class="mk-sec mk-alt" id="como-funciona">
+  <div class="mk-wrap">
+    <h2 class="mk-h2">Comece a receber agendamentos hoje</h2>
+    <p class="mk-sub">Três passos, poucos minutos.</p>
+    <ol class="mk-steps">
+      <li><b>Crie sua conta</b><span>Informe o nome do seu negócio. Sem cartão de crédito.</span></li>
+      <li><b>Cadastre serviços e equipe</b><span>Adicione fotos, preços, durações e os horários de cada profissional.</span></li>
+      <li><b>Compartilhe seu link</b><span>Coloque no Instagram, no WhatsApp e no Google. Os horários livres aparecem sozinhos.</span></li>
+    </ol>
+    <div class="mk-for"><span>Feito para</span><i>Barbearias</i><i>Salões de beleza</i><i>Manicures</i><i>Esteticistas</i><i>Clínicas de estética</i><i>Profissionais autônomos</i></div>
+  </div>
+</section>
+
+<section class="mk-sec" id="planos">
+  <div class="mk-wrap">
+    <h2 class="mk-h2">Planos que crescem com você</h2>
+    <p class="mk-sub">Nos primeiros 14 dias, tudo fica liberado. Depois, escolha um plano ou continue no Grátis.</p>
+    <div class="mk-plans" id="mk-plans"><div class="empty">Carregando planos…</div></div>
+  </div>
+</section>
+
+<section class="mk-sec mk-alt" id="perguntas">
+  <div class="mk-wrap mk-faq">
+    <h2 class="mk-h2">Perguntas frequentes</h2>
+    <details><summary>Preciso de cartão de crédito para testar?</summary><p>Não. Você cria a conta e usa todos os recursos por 14 dias, sem informar cartão.</p></details>
+    <details><summary>O que acontece quando os 14 dias acabam?</summary><p>Você escolhe um plano pago para manter tudo liberado. Se não assinar, a conta continua no plano Grátis, com recursos limitados, e todos os seus dados ficam salvos.</p></details>
+    <details><summary>Meus clientes precisam instalar algum aplicativo?</summary><p>Não. Eles agendam pelo seu link, direto no navegador do celular ou do computador.</p></details>
+    <details><summary>Funciona no celular?</summary><p>Sim. O AGENDA X se adapta a celulares, tablets e computadores, e pode ser instalado na tela inicial do celular como um aplicativo.</p></details>
+    <details><summary>Posso trocar de plano depois?</summary><p>Pode, a qualquer momento, no menu Minha assinatura.</p></details>
+    <details><summary>Os dados do meu negócio ficam separados dos outros?</summary><p>Sim. Cada estabelecimento enxerga somente os próprios clientes, serviços, agenda e finanças.</p></details>
+  </div>
+</section>
+
+<section class="mk-cta">
+  <div class="mk-wrap">
+    <h2>Pronto para organizar sua agenda?</h2>
+    <p>Crie sua conta agora e use tudo por 14 dias, grátis.</p>
+    <button class="btn primary lg" data-cta="reg">Começar meus 14 dias grátis</button>
+  </div>
+</section>
+
+<footer class="mk-foot"><div class="mk-wrap"><a class="logo" href="/">AGENDA <b>X</b></a><span>Sua agenda, seu negócio, seu crescimento.</span><span><a href="/termos.html">Termos de uso</a> · <a href="/privacidade.html">Privacidade</a></span></div></footer>
+
+<script src="/js/auth.js"></script>
+<script src="/js/site.js"></script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

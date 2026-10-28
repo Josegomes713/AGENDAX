@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: agenda-x
+    runtime: docker
+    plan: starter
+    healthCheckPath: /saude
+    envVars:
+      - key: MP_ACCESS_TOKEN      # Mercado Pago: comece com o token de TESTE (TEST-...); produção só depois (APP_USR-...)
+        sync: false
+      - key: MP_WEBHOOK_SECRET    # "assinatura secreta" do webhook, no painel do Mercado Pago
+        sync: false
+      - key: PUBLIC_URL           # endereço público do app, ex.: https://agenda-x.onrender.com
+        sync: false
+      - key: ADMIN_EMAILS         # seu e-mail (acesso total). Preencha no painel do Render.
+        value: Jsgomes27040@gmail.com
+      - key: VAPID_CONTACT        # e-mail de contato das notificações, ex.: mailto:voce@email.com
+        sync: false
+    disk:
+      name: agendax-data
+      mountPath: /data
+      sizeGB: 2
