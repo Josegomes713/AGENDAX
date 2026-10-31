@@ -125,27 +125,42 @@ document.addEventListener('click', async (e) => {
 function lerImagem(arquivo, maxLado) {
   return new Promise((resolve, reject) => {
     if (!arquivo || !/^image\//.test(arquivo.type)) return reject(new Error('Escolha um arquivo de imagem.'));
-    const url = URL.createObjectURL(arquivo);
-    const img = new Image();
-    img.onload = () => {
-      const f = Math.min(1, maxLado / Math.max(img.width, img.height));
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      resolve(c.toDataURL('image/jpeg', 0.85));
+    // Lê como endereço data: (a política de segurança do servidor não permite blob:)
+    const leitor = new FileReader();
+    leitor.onerror = () => reject(new Error('Não foi possível ler essa imagem.'));
+    leitor.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const iw = img.naturalWidth || img.width || 600, ih = img.naturalHeight || img.height || 600; // SVG sem tamanho
+        const f = Math.min(1, maxLado / Math.max(iw, ih));
+        const w = Math.max(1, Math.round(iw * f)), h = Math.max(1, Math.round(ih * f));
+        const desenhar = (fundo) => {
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          const g = c.getContext('2d');
+          if (fundo) { g.fillStyle = fundo; g.fillRect(0, 0, w, h); }
+          g.drawImage(img, 0, 0, w, h);
+          return c;
+        };
+        // PNG/WebP mantêm a transparência; se ficar grande demais, vira JPEG com fundo branco
+        if (/png|webp|gif/.test(arquivo.type)) {
+          const png = desenhar(null).toDataURL('image/png');
+          if (png.startsWith('data:image/png') && png.length <= 3600000) return resolve(png);
+        }
+        resolve(desenhar('#ffffff').toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => reject(new Error('Não foi possível ler essa imagem. Tente uma foto JPG ou PNG.'));
+      img.src = leitor.result;
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Não foi possível ler essa imagem.')); };
-    img.src = url;
+    leitor.readAsDataURL(arquivo);
   });
 }
 function fotoPicker(id, urlAtual, rotulo) {
   return `<div class="photo-pick" data-foto="${id}">
     <div class="pv">${urlAtual ? `<img src="${esc(urlAtual)}" alt="">` : icon('img')}</div>
-    <div><input type="file" accept="image/png,image/jpeg,image/webp" class="hide" data-foto-input="${id}">
+    <div><input type="file" accept="image/*" class="hide" data-foto-input="${id}">
       <button type="button" class="btn sm" data-act="foto-escolher">${esc(rotulo || 'Escolher foto')}</button>
       <button type="button" class="btn sm ghost danger ${urlAtual ? '' : 'hide'}" data-act="foto-remover">Remover</button>
-      <div class="hint">JPG, PNG ou WebP.</div></div></div>`;
+      <div class="hint">JPG, PNG, WebP ou outra imagem.</div></div></div>`;
 }
 act('foto-escolher', (el) => $('input[type=file]', el.closest('.photo-pick')).click());
 act('foto-remover', (el) => {
