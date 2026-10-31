@@ -8,7 +8,7 @@ const temRecurso = (r) => !r || AX.me.assinatura.plano.recursos.includes(r);
 
 function desenharMenu() {
   const rota = rotaAtual().nome;
-  $('#side').innerHTML = `<div class="side-head"><a class="logo" href="#/painel">AGENDA <b>X</b></a><div class="slogan">Sua agenda, seu negócio, seu crescimento</div></div>
+  $('#side').innerHTML = `<div class="side-head"><a class="logo" href="#/painel"><img class="logo-mark" src="/icons/logo-app.png" alt="" width="40" height="40">AGENDA <b>X</b></a><div class="slogan">Sua agenda, seu negócio, seu crescimento</div></div>
     <nav class="nav">${MENU.filter((x) => x[0] !== 'admin' || AX.me.admin).map(([id, rot, ic, rec]) => `<a href="#/${id}" class="${rota === id ? 'on' : ''}" ${rota === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${rot}</span>${temRecurso(rec) ? '' : '<span class="lock">Upgrade</span>'}</a>`).join('')}
       <div class="sep"></div><button data-act="sair">${icon('sair')}<span>Sair</span></button></nav>
     <div class="side-foot"><strong>${esc(AX.me.estabelecimento.nome)}</strong><span>${esc(AX.me.usuario.nome)} · ${AX.me.assinatura.status === 'trial' ? 'Teste grátis' : 'Plano ' + esc(AX.me.assinatura.plano.nome)}</span></div>`;

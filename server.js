@@ -1061,6 +1061,15 @@ post('/api/webhooks/mercadopago', { publico: true }, async (c) => {
   db.prepare('INSERT OR IGNORE INTO webhook_eventos (chave, provedor_id, resultado) VALUES (?,?,?)').run(chave, dataId, resultado);
   return { ok: true };
 });
+// O usuário escolhe quando quiser: ficar no plano Grátis (encerrando o teste) ou pagar um plano pago. Assinatura paga em andamento não é cortada.
+post('/api/assinatura/gratis', { semBloqueio: true }, (c) => {
+  const st = L.estadoAssinatura(c.est);
+  if (st.status === 'ativa') throw erro(400, 'Sua assinatura paga continua até o vencimento. Depois dessa data, a conta volta sozinha para o plano Grátis.');
+  if (st.status === 'gratis') return { ok: true, ja: true };
+  db.prepare("UPDATE estabelecimentos SET assinatura_status = 'cancelada' WHERE id = ?").run(c.est.id);
+  notificar(c.est.id, 'assinatura', 'Plano Grátis escolhido', 'Você está no plano Grátis. Seus dados continuam salvos e você pode assinar um plano pago quando quiser.');
+  return { ok: true };
+});
 post('/api/assinatura/cancelar', { semBloqueio: true }, (c) => {
   db.prepare("UPDATE estabelecimentos SET assinatura_status = 'cancelada' WHERE id = ?").run(c.est.id);
   notificar(c.est.id, 'assinatura', 'Assinatura cancelada', 'Você voltou para o plano Grátis. Seus dados continuam salvos.');
@@ -1215,72 +1224,8 @@ post('/api/admin/contas/:id', { semBloqueio: true }, (c) => {
   return contaAdmin(db.prepare('SELECT * FROM estabelecimentos WHERE id = ?').get(e.id));
 });
 
-// ======================= Credenciais de pagamento (painel do administrador) =======================
-// O token e a assinatura do webhook ficam no servidor, criptografados (AES-256-GCM). Nunca voltam para o navegador:
-// o painel só mostra "definido" e as últimas letras. A chave de criptografia vem de CONFIG_KEY ou de um arquivo gerado
-// na pasta de dados (separado do banco). O painel tem prioridade sobre as variáveis de ambiente.
-const chaveConfig = (() => {
-  if (process.env.CONFIG_KEY) return crypto.createHash('sha256').update('agendax-config|' + process.env.CONFIG_KEY).digest();
-  const f = path.join(DATA_DIR, '.chave-config');
-  try { const k = Buffer.from(fs.readFileSync(f, 'utf8').trim(), 'hex'); if (k.length === 32) return k; } catch (_) { /* cria abaixo */ }
-  const k = crypto.randomBytes(32);
-  try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(f, k.toString('hex'), { mode: 0o600 }); } catch (_) { /* sem disco: vale só nesta execução */ }
-  return k;
-})();
-function cifrar(txt) {
-  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', chaveConfig, iv);
-  const ct = Buffer.concat([c.update(String(txt), 'utf8'), c.final()]);
-  return [iv, c.getAuthTag(), ct].map((b) => b.toString('base64')).join('.');
-}
-function decifrar(v) {
-  try {
-    const [iv, tag, ct] = String(v).split('.').map((x) => Buffer.from(x, 'base64'));
-    const d = crypto.createDecipheriv('aes-256-gcm', chaveConfig, iv); d.setAuthTag(tag);
-    return Buffer.concat([d.update(ct), d.final()]).toString('utf8');
-  } catch (_) { return ''; }
-}
-const cfgLer = (k) => { const r = db.prepare('SELECT valor FROM config WHERE chave = ?').get(k); return r ? r.valor : ''; };
-const cfgGravar = (k, v) => { if (v) db.prepare('INSERT INTO config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor').run(k, v); else db.prepare('DELETE FROM config WHERE chave = ?').run(k); };
-const segredoPainel = (k) => { const v = cfgLer(k); return v ? decifrar(v) : ''; };
-function urlPublica() { return (cfgLer('public_url') || process.env.PUBLIC_URL || '').replace(/\/$/, ''); }
-PAG.setFonte(() => ({ token: segredoPainel('mp_token'), segredo: segredoPainel('mp_segredo') }));
-const mascara = (t) => (t ? t.replace(/^([A-Za-z_]+-).*(.{4})$/, '$1…$2') : '');
-function estadoPagamentos() {
-  const tp = segredoPainel('mp_token'), sp = segredoPainel('mp_segredo');
-  const tok = tp || process.env.MP_ACCESS_TOKEN || '', seg = sp || process.env.MP_WEBHOOK_SECRET || '';
-  const url = urlPublica();
-  return { modo: PAG.modo(), token: { definido: !!tok, origem: tp ? 'painel' : tok ? 'servidor' : '', mascara: mascara(tok) },
-    segredo: { definido: !!seg, origem: sp ? 'painel' : seg ? 'servidor' : '' },
-    public_url: url, webhook_url: url ? url + '/api/webhooks/mercadopago' : '' };
-}
-get('/api/admin/pagamentos', { semBloqueio: true }, (c) => { soDono(c); return estadoPagamentos(); });
-put('/api/admin/pagamentos', { semBloqueio: true }, (c) => {
-  soDono(c);
-  if (!L.limite('adm-pag:' + c.user.id, 20, 3600000)) throw erro(429, 'Muitas alterações. Tente mais tarde.');
-  const b = c.body, mudou = [];
-  const tok = String(b.access_token || '').trim(), seg = String(b.webhook_secret || '').trim();
-  let url = String(b.public_url || '').trim();
-  if (tok) { if (!/^(TEST|APP_USR)-[A-Za-z0-9_-]{20,200}$/.test(tok)) throw erro(400, 'Esse Access Token não parece certo. Ele começa com TEST- (teste) ou APP_USR- (produção).'); }
-  if (seg && !/^[\x21-\x7e]{8,200}$/.test(seg)) throw erro(400, 'A assinatura secreta parece inválida (sem espaços, de 8 a 200 caracteres).');
-  if (url) {
-    let u; try { u = new URL(url); } catch (_) { throw erro(400, 'Endereço inválido. Exemplo: https://meuapp.onrender.com'); }
-    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && !PROD)) throw erro(400, 'O endereço precisa começar com https://');
-    url = u.origin;
-  }
-  tx(() => {
-    if (b.remover_token) { cfgGravar('mp_token', ''); mudou.push('token removido'); } else if (tok) { cfgGravar('mp_token', cifrar(tok)); mudou.push('token'); }
-    if (b.remover_segredo) { cfgGravar('mp_segredo', ''); mudou.push('assinatura removida'); } else if (seg) { cfgGravar('mp_segredo', cifrar(seg)); mudou.push('assinatura do webhook'); }
-    if (url) { cfgGravar('public_url', url); mudou.push('endereço do app'); }
-    if (mudou.length) db.prepare('INSERT INTO admin_log (admin_email, estabelecimento_id, acao, detalhe) VALUES (?,?,?,?)').run(c.user.email, c.est.id, 'pagamentos', 'Credenciais de pagamento: ' + mudou.join(', '));
-  });
-  return estadoPagamentos();
-});
-post('/api/admin/pagamentos/testar', { semBloqueio: true }, async (c) => {
-  soDono(c);
-  if (!L.limite('adm-pag-teste:' + c.user.id, 15, 3600000)) throw erro(429, 'Muitos testes. Tente mais tarde.');
-  try { const r = await PAG.testar(); return { ok: true, modo: PAG.modo(), conta: r }; }
-  catch (e) { throw erro(400, e.status === 502 ? 'Não consegui falar com o Mercado Pago agora. Tente de novo.' : 'O Mercado Pago recusou este token. Confira se copiou inteiro.'); }
-});
+// Endereço público do app (usado no aviso de pagamento): vem da variável PUBLIC_URL.
+function urlPublica() { return (process.env.PUBLIC_URL || '').replace(/\/$/, ''); }
 
 // ======================= Servidor HTTP =======================
 const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";

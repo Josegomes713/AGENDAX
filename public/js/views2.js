@@ -157,7 +157,7 @@ VIEWS.assinatura = async (el) => {
     : e.status === 'trial' ? `Teste grátis com tudo liberado — ${e.dias_restantes} dia(s) restante(s) (até ${fmtData(e.trial_ate)})`
     : e.vencida ? `Assinatura vencida em ${dataBr(e.assinatura_ate)} (plano limitado)` : 'Plano limitado (recursos reduzidos)';
   const nomeDe = (id) => a.planos.find((p) => p.id === id).nome;
-  const aviso = e.status === 'trial' ? '<p class="hint mt-s">Quando o teste acabar, a cobrança só começa se você assinar. Sem assinatura, a conta continua no plano limitado e seus dados ficam salvos.</p>'
+  const aviso = e.status === 'trial' ? '<p class="hint mt-s">Você decide quando quiser: assine um plano pago agora (o teste termina e a assinatura começa hoje), ou fique no plano Grátis. Sem assinatura, a conta continua no plano limitado e seus dados ficam salvos.</p>'
     : e.status === 'gratis' ? '<p class="hint mt-s">Seus dados continuam salvos. Pague o Pix de um plano para liberar tudo de novo.</p>'
     : '<p class="hint mt-s">Não há renovação automática: perto do vencimento você recebe um aviso e paga o Pix do mês seguinte.</p>';
   const passo = (ok, t) => `<span class="pix-passo ${ok ? 'on' : ''}">${ok ? '✓' : '•'} ${t}</span>`;
@@ -179,7 +179,7 @@ VIEWS.assinatura = async (el) => {
         if (!pago) {
           const prem = a.planos.find((x) => x.id === 'premium') || {};
           const emTeste = e.status === 'trial';
-          return `<div class="plan ${emTeste ? 'cur' : ''}">${emTeste ? '<span class="tag">Seu teste</span>' : ''}<h3>14 dias grátis</h3><div class="pr num">R$ 0 <small>por 14 dias</small></div><ul><li>Tudo dos planos pagos liberado</li><li>Todas as ${prem.total_funcoes || ''} funções do plano Premium</li><li>Sem cartão de crédito</li><li>Depois, escolha o plano que quiser</li></ul>${emTeste ? `<button class="btn" disabled>Em andamento: ${e.dias_restantes} dia(s)</button>` : '<button class="btn" disabled>Teste já utilizado</button>'}</div>`;
+          return `<div class="plan ${emTeste ? 'cur' : ''}">${emTeste ? '<span class="tag">Seu teste</span>' : ''}<h3>14 dias grátis</h3><div class="pr num">R$ 0 <small>por 14 dias</small></div><ul><li>Tudo dos planos pagos liberado</li><li>Todas as ${prem.total_funcoes || ''} funções do plano Premium</li><li>Sem cartão de crédito</li><li>Depois, escolha o plano que quiser</li></ul>${emTeste ? `<button class="btn" disabled>Em andamento: ${e.dias_restantes} dia(s)</button><button class="btn mt-s" data-act="assin-gratis">Ficar no plano Grátis agora</button>` : e.status === 'ativa' ? '<button class="btn" disabled>Volta sozinho ao vencer</button>' : '<button class="btn" disabled>Você está no plano Grátis</button>'}</div>`;
         }
         return `<div class="plan ${atual ? 'cur' : ''}">${atual ? '<span class="tag">Plano atual</span>' : ''}<h3>${esc(p.nome)}</h3><div class="pr num">${p.preco ? brl(p.preco) : 'R$ 0'} <small>/mês</small></div><ul>${p.destaques.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>${p.herda ? `<div class="fn-hd">Tudo do plano ${esc(p.herda)} e mais <b>${p.funcoes.length} funções</b></div><ul class="fn">${p.funcoes.map((f) => `<li>${esc(f.nome)}</li>`).join('')}</ul><div class="muted small" style="margin:4px 0 10px">Total: ${p.total_funcoes} funções liberadas</div>` : ''}${botao}</div>`;
       }).join('')}</div>${hist}`;
@@ -346,6 +346,7 @@ act('plano-trocar', async (b) => {
   const r = await api('/api/assinatura', 'POST', { plano: b.dataset.id, ativar: b.dataset.ativar === '1' });
   toast(b.dataset.ativar === '1' ? 'Assinatura ativada!' : 'Plano escolhido. Avisaremos quando a assinatura estiver disponível.', 'ok'); await window.atualizarBanner(); recarregar();
 });
+act('assin-gratis', async () => { if (!(await confirmar('Ficar no plano Grátis agora? O que sobrou do teste de 14 dias termina e a conta passa a ter só os recursos do plano Grátis. Seus dados continuam salvos e você pode assinar um plano pago quando quiser.', 'Ficar no Grátis', true))) return; await api('/api/assinatura/gratis', 'POST'); toast('Você está no plano Grátis.'); await window.atualizarBanner(); recarregar(); });
 act('assin-cancelar', async () => { if (!(await confirmar('Cancelar a assinatura? Você volta para o plano Grátis, com recursos limitados. Seus dados continuam salvos.', 'Cancelar assinatura', true))) return; await api('/api/assinatura/cancelar', 'POST'); toast('Assinatura cancelada.'); await window.atualizarBanner(); recarregar(); });
 act('senha-salvar', async () => {
   try { await api('/api/me/senha', 'PUT', { atual: $('#sn-at').value, nova: $('#sn-nv').value }); toast('Senha alterada.', 'ok'); $('#sn-at').value = ''; $('#sn-nv').value = ''; $('#sn-err').classList.add('hide'); }

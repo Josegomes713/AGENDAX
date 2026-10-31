@@ -22,6 +22,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* ---------- Logo ---------- */
 .logo{font-weight:800;letter-spacing:.04em;font-size:22px;color:#fff;display:inline-flex;align-items:baseline;gap:6px;text-decoration:none}
 .logo b{color:var(--p-light);font-weight:900;font-size:1.18em}
+.logo-mark{width:1.8em;height:1.8em;border-radius:22%;object-fit:cover;align-self:center;margin-right:2px;flex:none}
 .logo.dark{color:var(--ink)} .logo.dark b{color:var(--p)}
 .slogan{font-size:12px;color:var(--side-text);margin-top:4px;letter-spacing:0}
 
@@ -216,6 +217,7 @@ td.r,th.r{text-align:right}
 .auth-hero .plans-mini b{color:#fff}
 .auth-form{display:flex;align-items:center;justify-content:center;padding:32px 20px;background:var(--bg)}
 .auth-card{width:100%;max-width:440px}
+.auth-logo{display:block;margin:0 auto 14px;width:88px;height:88px;border-radius:22%;box-shadow:0 8px 24px rgba(91,33,182,.35)}
 .auth-card h2{font-size:26px;margin-bottom:6px} .auth-card .sub{color:var(--muted);margin-bottom:22px}
 .plan-pick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
 .plan-pick label{border:2px solid var(--line);background:#fff;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;font-size:13px;display:block}
@@ -389,4 +391,3 @@ td.r,th.r{text-align:right}
 .pix-pend{border-left:4px solid #6d3df0}
 
 .adm-link{font-size:12px;color:var(--muted);opacity:.7;text-decoration:none}.adm-link:hover{opacity:1;text-decoration:underline}
-.adm-pg-linhas{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:10px}.adm-pg-linhas code,#adm-wh{word-break:break-all}

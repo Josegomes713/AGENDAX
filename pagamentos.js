@@ -1,6 +1,6 @@
 'use strict';
 // Provedor de pagamentos Pix: Mercado Pago (API de Pagamentos). Sem dependências externas.
-// Credenciais SOMENTE no servidor (painel do administrador, criptografadas, ou variáveis de ambiente):
+// Credenciais SOMENTE no servidor (variáveis de ambiente do Render), nunca no navegador nem no código:
 //   MP_ACCESS_TOKEN    token de acesso (de teste começa com "TEST-"; de produção com "APP_USR-")
 //   MP_WEBHOOK_SECRET  assinatura secreta do webhook (painel do Mercado Pago > Webhooks)
 //   PUBLIC_URL         endereço público do app (https://...), usado como notification_url
@@ -8,12 +8,8 @@
 const crypto = require('crypto');
 
 const base = () => (process.env.MP_API_BASE || 'https://api.mercadopago.com').replace(/\/$/, '');
-// As credenciais podem vir do painel de administração (guardadas criptografadas no servidor) ou das variáveis de ambiente.
-// O painel tem prioridade; remover no painel volta a valer a variável de ambiente.
-let fonte = () => ({});
-function setFonte(fn) { fonte = typeof fn === 'function' ? fn : () => ({}); }
-const token = () => fonte().token || process.env.MP_ACCESS_TOKEN || '';
-const segredo = () => fonte().segredo || process.env.MP_WEBHOOK_SECRET || '';
+const token = () => process.env.MP_ACCESS_TOKEN || '';
+const segredo = () => process.env.MP_WEBHOOK_SECRET || '';
 
 // desligado = sem credenciais; teste = credenciais de teste (nenhuma cobrança real); producao = cobranças reais
 function modo() { const t = token(); if (!t) return 'desligado'; return t.startsWith('TEST-') ? 'teste' : 'producao'; }
@@ -49,13 +45,6 @@ async function buscar(id) {
   return { id: String(d.id), status: d.status, valor: Number(d.transaction_amount), moeda: d.currency_id, referencia: d.external_reference || '', metodo: d.payment_method_id, aprovado_em: d.date_approved || null };
 }
 
-// Testa o token sem criar cobrança: pergunta ao Mercado Pago de quem é a conta.
-async function testar() {
-  if (!token()) { const err = new Error('Informe o Access Token primeiro.'); err.status = 400; throw err; }
-  const d = await chamar('GET', '/users/me');
-  return { id: String(d.id || ''), nome: d.nickname || [d.first_name, d.last_name].filter(Boolean).join(' ') || '', pais: d.site_id || '' };
-}
-
 async function cancelar(id) { try { await chamar('PUT', '/v1/payments/' + id, { status: 'cancelled' }); } catch (_) { /* melhor esforço */ } }
 
 // Assinatura do webhook: x-signature "ts=...,v1=<hmac>" com manifesto "id:<data.id>;request-id:<x-request-id>;ts:<ts>;"
@@ -71,4 +60,4 @@ function assinaturaValida({ dataId, xSignature, xRequestId }) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-module.exports = { setFonte, testar, modo, criarPix, buscar, cancelar, assinaturaValida };
+module.exports = { modo, criarPix, buscar, cancelar, assinaturaValida };

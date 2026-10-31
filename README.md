@@ -51,5 +51,6 @@ Quem entra com um e-mail listado em `ADMIN_EMAILS` vê o item **Administração*
 Na tela inicial há um link discreto **Administrador**: e-mail e senha, sem código. Só funciona para e-mails de `ADMIN_EMAILS`. Usuários comuns nunca veem o menu Administração e a API responde 404 para eles.
 Se `ADMIN_EMAILS` estiver vazio, o **primeiro** e-mail e senha digitados no link Administrador viram o acesso de administrador e o acesso fica trancado para qualquer outro e-mail. Por isso, faça esse primeiro acesso logo depois de publicar.
 
-## Credenciais do Mercado Pago pelo painel
-Em **Administração → Pagamentos dos planos** você cola o Access Token, a assinatura do webhook e o endereço do app, sem mexer no Render. Eles ficam guardados criptografados (AES-256-GCM) e nunca voltam para a tela; o botão **Testar conexão** confere o token sem cobrar nada. O painel tem prioridade sobre as variáveis `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` e `PUBLIC_URL`. A chave de criptografia fica em `/data/.chave-config` (ou em `CONFIG_KEY`), por isso o disco do Render precisa continuar ligado.
+## Escolha do plano
+O usuário decide quando quiser: pode ficar no plano **Grátis** (botão "Ficar no plano Grátis agora", que encerra o teste) ou pagar o Pix de um plano pago a qualquer momento, durante o teste ou depois. Assinatura paga em andamento não é cortada: ao vencer, a conta volta sozinha para o Grátis.
+

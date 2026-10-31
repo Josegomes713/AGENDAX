@@ -578,6 +578,23 @@ function webhookMP(id, { assinar = true, reqId = 'req-' + crypto.randomUUID(), t
     assert.equal((await Y.post('/api/auth/admin', { email: 'dono@teste.com', senha: 'senha-forte-3' })).status, 200);
   });
 
+  await t('o usuário escolhe: Grátis quando quiser ou pagar um plano pago, a qualquer momento', async () => {
+    const A = new Cliente(), B = new Cliente();
+    await A.post('/api/auth/register', { nome_estabelecimento: 'Escolha A', nome: 'A', email: 'esc-a@teste.com', senha: 'senha-forte-9' });
+    assert.equal((await A.get('/api/me')).d.assinatura.status, 'trial');
+    assert.equal((await A.post('/api/assinatura/gratis')).status, 200);
+    const m = (await A.get('/api/me')).d.assinatura;
+    assert.equal(m.status, 'gratis'); assert.equal(m.plano.id, 'gratis');
+    assert.equal((await A.post('/api/assinatura/gratis')).status, 200);
+    const pix = await A.post('/api/assinatura/pix', { plano: 'basico' });
+    assert.equal(pix.status, 201); assert.equal(pix.d.valor, 20);
+    await B.post('/api/auth/register', { nome_estabelecimento: 'Escolha B', nome: 'B', email: 'esc-b@teste.com', senha: 'senha-forte-9' });
+    const eid = db.prepare("SELECT estabelecimento_id e FROM usuarios WHERE email = 'esc-b@teste.com'").get().e;
+    db.prepare("UPDATE estabelecimentos SET plano = 'premium', assinatura_status = 'ativa', assinatura_ate = date('now','+10 day') WHERE id = ?").run(eid);
+    assert.equal((await B.post('/api/assinatura/gratis')).status, 400);
+    assert.equal((await B.get('/api/me')).d.assinatura.status, 'ativa');
+  });
+
   await t('revisão: recuperação de senha por código, uso único e sessões encerradas', async () => {
     const X = new Cliente(), Y = new Cliente();
     const reg = await X.post('/api/auth/register', { nome_estabelecimento: 'Rec Teste', nome: 'R', email: 'rec@teste.com', senha: 'senha-antiga-1' });
@@ -785,51 +802,6 @@ function webhookMP(id, { assinar = true, reqId = 'req-' + crypto.randomUUID(), t
     const eu = resumo.d.contas.find((c) => c.email === 'dono@teste.com');
     assert.equal((await O.post('/api/admin/contas/' + eu.id, { acao: 'suspender' })).status, 400);
     assert.ok((await O.get('/api/admin/resumo')).d.historico.length >= 4, 'histórico das ações');
-  });
-
-  await t('pagamentos pelo painel do administrador: token criptografado, só o dono, teste de conexão', async () => {
-    const O = new Cliente(); await O.post('/api/auth/login', { email: 'dono@teste.com', senha: 'senha-forte-3' });
-    const U = new Cliente(); await U.post('/api/auth/register', { nome_estabelecimento: 'Pag Painel', nome: 'P', email: 'pagpainel@teste.com', senha: 'senha-forte-9' });
-    // quem não é dono: 404 em tudo
-    assert.equal((await U.get('/api/admin/pagamentos')).status, 404);
-    assert.equal((await U.put('/api/admin/pagamentos', { access_token: 'TEST-abcdefghijklmnopqrstuvwxyz' })).status, 404);
-    assert.equal((await U.post('/api/admin/pagamentos/testar', {})).status, 404);
-    assert.equal((await new Cliente().get('/api/admin/pagamentos')).status, 401);
-    const g0 = await O.get('/api/admin/pagamentos');
-    assert.equal(g0.status, 200); assert.equal(g0.d.token.origem, 'servidor'); assert.ok(!JSON.stringify(g0.d).includes('token-de-teste'), 'token do servidor nunca volta inteiro');
-    // validações
-    assert.equal((await O.put('/api/admin/pagamentos', { access_token: 'qualquer-coisa' })).status, 400);
-    assert.equal((await O.put('/api/admin/pagamentos', { public_url: 'javascript:alert(1)' })).status, 400);
-    assert.equal((await O.put('/api/admin/pagamentos', { webhook_secret: 'curto' })).status, 400);
-    // salva token novo pelo painel
-    const novoTok = 'TEST-painel-1234567890-abcdefghijklmnop', antes = fakeMP.auth;
-    const r = await O.put('/api/admin/pagamentos', { access_token: novoTok, webhook_secret: 'segredo-do-painel-123', public_url: 'https://meuapp.onrender.com/qualquer/caminho' });
-    assert.equal(r.status, 200); assert.equal(r.d.token.origem, 'painel'); assert.equal(r.d.segredo.origem, 'painel');
-    assert.equal(r.d.public_url, 'https://meuapp.onrender.com'); assert.equal(r.d.webhook_url, 'https://meuapp.onrender.com/api/webhooks/mercadopago');
-    assert.ok(!JSON.stringify(r.d).includes('1234567890-abcdefghij'), 'resposta não devolve o token');
-    assert.ok(!JSON.stringify((await O.get('/api/admin/pagamentos')).d).includes('1234567890-abcdefghij'));
-    const guardado = db.prepare("SELECT valor FROM config WHERE chave = 'mp_token'").get().valor;
-    assert.ok(!guardado.includes('painel-1234567890') && !guardado.includes('TEST-'), 'guardado criptografado');
-    // testar conexão (o provedor falso só aceita o token novo)
-    assert.equal((await O.post('/api/admin/pagamentos/testar', {})).status, 400, 'token novo ainda não é aceito pelo provedor falso');
-    fakeMP.auth = 'Bearer ' + novoTok;
-    const ok = await O.post('/api/admin/pagamentos/testar', {});
-    assert.equal(ok.status, 200); assert.equal(ok.d.conta.nome, 'LOJA TESTE'); assert.equal(ok.d.modo, 'teste');
-    // a cobrança usa o token do painel
-    const pix = await U.post('/api/assinatura/pix', { plano: 'basico' });
-    assert.equal(pix.status, 201, JSON.stringify(pix.d));
-    // webhook valida com a assinatura do painel
-    const id = fakeMP.seq;
-    assert.equal((await webhookMP(id, { segredo: 'segredo-do-painel-123' })).status, 200);
-    assert.equal((await webhookMP(id, { segredo: MP_SEGREDO })).status, 401, 'a assinatura antiga não vale mais');
-    // histórico não guarda valores
-    const hist = (await O.get('/api/admin/resumo')).d.historico.filter((h) => h.acao === 'pagamentos');
-    assert.ok(hist.length >= 1 && !JSON.stringify(hist).includes('1234567890'));
-    // remover volta a valer o ambiente
-    const rem = await O.put('/api/admin/pagamentos', { remover_token: true, remover_segredo: true });
-    assert.equal(rem.d.token.origem, 'servidor'); assert.equal(rem.d.segredo.origem, 'servidor');
-    fakeMP.auth = antes;
-    db.prepare("DELETE FROM config WHERE chave = 'public_url'").run();
   });
 
   console.log(`\n${passou} testes passaram${process.exitCode ? ' (com falhas)' : ' — tudo certo'}.`);
