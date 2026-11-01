@@ -199,6 +199,32 @@ CREATE TABLE IF NOT EXISTS webhook_eventos (
 );`);
 if (!colunaExiste('usuarios', 'recup_hash')) db.exec('ALTER TABLE usuarios ADD COLUMN recup_hash TEXT');
 
+// Central do Proprietário: histórico de mudanças de assinatura e registro de ativações de plano
+db.exec(`CREATE TABLE IF NOT EXISTS assinatura_historico (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  quando TEXT NOT NULL DEFAULT (datetime('now')),
+  estabelecimento_id INTEGER NOT NULL,
+  origem TEXT NOT NULL,
+  de_plano TEXT, de_status TEXT, para_plano TEXT, para_status TEXT,
+  detalhe TEXT DEFAULT '',
+  autor TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_hist_est ON assinatura_historico(estabelecimento_id, id);
+CREATE TABLE IF NOT EXISTS ativacoes_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  quando TEXT NOT NULL DEFAULT (datetime('now')),
+  estabelecimento_id INTEGER,
+  pagamento_id INTEGER,
+  origem TEXT NOT NULL,
+  resultado TEXT NOT NULL,
+  motivo TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_ativ_pag ON ativacoes_log(pagamento_id);
+INSERT INTO ativacoes_log (quando, estabelecimento_id, pagamento_id, origem, resultado, motivo)
+  SELECT COALESCE(p.pago_em, p.criado_em), p.estabelecimento_id, p.id, 'retroativo', 'ativado', 'Registro criado ao ativar a Central do Proprietário (pagamento já aprovado antes)'
+  FROM pagamentos p WHERE p.status = 'aprovado' AND NOT EXISTS (SELECT 1 FROM ativacoes_log a WHERE a.pagamento_id = p.id AND a.resultado = 'ativado');
+`);
+
 function tx(fn) {
   db.exec('BEGIN');
   try { const r = fn(); db.exec('COMMIT'); return r; }

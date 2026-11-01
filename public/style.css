@@ -391,3 +391,18 @@ td.r,th.r{text-align:right}
 .pix-pend{border-left:4px solid #6d3df0}
 
 .adm-link{font-size:12px;color:var(--muted);opacity:.7;text-decoration:none}.adm-link:hover{opacity:1;text-decoration:underline}
+
+/* Central do Proprietário: roxo neon, preto, branco e prata */
+.cp-hero{display:flex;gap:16px;align-items:center;padding:22px 24px;border-radius:var(--r);background:radial-gradient(circle at 12% 0%,#6d28d9 0%,#1c1535 55%,#0b0716 100%);color:#fff;margin-bottom:18px;box-shadow:0 0 0 1px #a855f755,0 10px 34px rgba(124,58,237,.35)}
+.cp-hero h2{font-size:22px;color:#fff} .cp-hero p{margin:4px 0 0;color:#d4d0e6;font-size:14px}
+.cp-crown{width:52px;height:52px;flex:none;border-radius:14px;display:flex;align-items:center;justify-content:center;background:#ffffff14;border:1px solid #c0c0d855;box-shadow:0 0 18px #a855f788}
+.cp-crown svg{width:28px;height:28px;stroke:#e5e7f0;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cp-stat.hl{background:linear-gradient(135deg,#7c3aed 0%,#1c1535 100%);box-shadow:0 0 18px #a855f744}
+.cp-chart svg{width:100%;height:auto;display:block} .cp-chart h3{margin-bottom:8px;font-size:15px}
+.cp-table{padding:0;overflow:hidden} .tbl-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:14px} .tbl th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top} .tbl tr:last-child td{border-bottom:0}
+.cp-ver{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)} .cp-ver:last-of-type{border-bottom:0}
+.cp-al{margin:8px 0;padding:10px 12px;border-radius:8px;background:var(--info-bg);border-left:4px solid var(--info)} .cp-al.alto{background:var(--bad-bg);border-color:var(--bad)} .cp-al.medio{background:var(--warn-bg);border-color:var(--warn)}
+.cp-ia ul{margin:6px 0 0;padding-left:20px}
+@media (max-width:700px){.cp-hero{padding:16px}.cp-hero h2{font-size:18px}}

@@ -1,0 +1,13 @@
+{
+  "name": "agenda-x",
+  "version": "1.0.0",
+  "description": "AGENDA X — Agendamentos Inteligentes",
+  "main": "server.js",
+  "private": true,
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "demo:seed": "node --disable-warning=ExperimentalWarning seed.js",
+    "test": "node --disable-warning=ExperimentalWarning test.js"
+  }
+}

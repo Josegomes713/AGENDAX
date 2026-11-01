@@ -804,6 +804,105 @@ function webhookMP(id, { assinar = true, reqId = 'req-' + crypto.randomUUID(), t
     assert.ok((await O.get('/api/admin/resumo')).d.historico.length >= 4, 'histórico das ações');
   });
 
+  await t('Central do Proprietário: só o dono acessa (backend), sem segredos', async () => {
+    const O = new Cliente(); await O.post('/api/auth/login', { email: 'dono@teste.com', senha: 'senha-forte-3' });
+    const U = new Cliente(); await U.post('/api/auth/register', { nome_estabelecimento: 'Central Comum', nome: 'Comum', email: 'comum@teste.com', senha: 'senha-forte-7' });
+    const rotas = ['resumo', 'planos', 'pagamentos', 'ativacoes', 'teste', 'financeiro', 'inteligencia', 'contas/1/historico'];
+    for (const r of rotas) {
+      assert.equal((await anon.get('/api/central/' + r)).status, 401, r + ' sem login');
+      assert.equal((await U.get('/api/central/' + r)).status, 404, r + ' usuário comum');
+      assert.equal((await O.get('/api/central/' + r)).status, 200, r + ' dono');
+    }
+    assert.equal((await U.post('/api/central/assinaturas/1', { acao: 'ativar', plano: 'premium', confirmar: true })).status, 404);
+    assert.equal((await U.post('/api/central/pagamentos/1/reconsultar', {})).status, 404);
+    for (const r of rotas) { const txt = JSON.stringify((await O.get('/api/central/' + r)).d); assert.ok(!/senha_hash|recup_hash|ip_hash|qr_code|TEST-token|segredo-webhook/.test(txt), 'sem segredos em ' + r); }
+    assert.equal((await U.get('/api/me')).d.admin, false);
+  });
+
+  await t('Central: ativação automática, pendente não libera, sem duplicar, divergência e falhas visíveis', async () => {
+    const O = new Cliente(); await O.post('/api/auth/login', { email: 'dono@teste.com', senha: 'senha-forte-3' });
+    const C = new Cliente(); await C.post('/api/auth/register', { nome_estabelecimento: 'Cliente Central', nome: 'Cena', email: 'cena@teste.com', senha: 'senha-forte-8' });
+    const est = db.prepare("SELECT estabelecimento_id id FROM usuarios WHERE email = 'cena@teste.com'").get().id;
+    const antes = (await O.get('/api/central/resumo')).d.indicadores;
+    const p = (await C.post('/api/assinatura/pix', { plano: 'basico' })).d;
+    // cobrança criada ≠ pagamento aprovado
+    assert.equal((await O.get('/api/central/resumo')).d.indicadores.pagamentos_aprovados, antes.pagamentos_aprovados);
+    assert.equal((await O.get('/api/central/resumo')).d.indicadores.faturamento_mensal, antes.faturamento_mensal);
+    // aviso válido com pagamento ainda pendente: nada é liberado e fica registrado
+    assert.equal((await webhookMP(p.transacao)).status, 200);
+    assert.equal((await C.get('/api/me')).d.assinatura.status, 'trial');
+    let at = (await O.get('/api/central/ativacoes')).d;
+    assert.ok(at.ativacoes.some((a) => a.pagamento_id === p.id && a.resultado === 'pendente'));
+    // aprova: ativa uma única vez, mesmo com avisos repetidos e simultâneos
+    fakeAprovar(p.transacao);
+    await Promise.all([webhookMP(p.transacao), webhookMP(p.transacao), webhookMP(p.transacao)]);
+    assert.equal((await C.get('/api/me')).d.assinatura.status, 'ativa');
+    at = (await O.get('/api/central/ativacoes')).d;
+    assert.equal(at.ativacoes.filter((a) => a.pagamento_id === p.id && a.resultado === 'ativado').length, 1, 'uma ativação só');
+    assert.ok(at.verificacoes.find((v) => v.id === 'duplicadas').ok);
+    assert.ok(at.verificacoes.find((v) => v.id === 'sem_ativacao').ok);
+    // webhook sem assinatura aparece como tentativa recusada
+    assert.equal((await webhookMP(p.transacao, { assinar: false })).status, 401);
+    assert.ok((await O.get('/api/central/ativacoes')).d.webhooks.some((w) => w.resultado === 'assinatura_invalida'));
+    // divergência de valor: não ativa e o motivo fica consultável
+    const p2 = (await C.post('/api/assinatura/pix', { plano: 'premium' })).d;
+    fakeAprovar(p2.transacao, { transaction_amount: 1 }); await webhookMP(p2.transacao);
+    const dv = (await O.get('/api/central/ativacoes')).d.ativacoes.find((a) => a.pagamento_id === p2.id && a.resultado === 'divergente');
+    assert.ok(dv && /Esperado/.test(dv.motivo));
+    assert.ok(!(await O.get('/api/central/ativacoes')).d.verificacoes.find((v) => v.id === 'falhas').ok);
+    // monitor de pagamentos e financeiro: só o aprovado entra na receita
+    const pg = (await O.get('/api/central/pagamentos?status=aprovado')).d;
+    const meu = pg.pagamentos.find((x) => x.id === p.id);
+    assert.equal(meu.cliente, 'Cliente Central'); assert.equal(meu.valor, 20); assert.equal(meu.metodo, 'Pix'); assert.equal(String(meu.transacao), String(p.transacao));
+    const fin = (await O.get('/api/central/financeiro')).d;
+    assert.ok(fin.dia >= 20 && fin.mes >= 20 && fin.total_recebido >= 20);
+    const somaDb = db.prepare("SELECT SUM(valor) v FROM pagamentos WHERE status='aprovado'").get().v;
+    assert.equal(Math.round(fin.total_recebido * 100), Math.round(somaDb * 100), 'receita = só aprovados');
+    assert.equal(fin.serie_diaria.length, 30);
+    const dep = (await O.get('/api/central/resumo')).d.indicadores;
+    assert.equal(dep.pagamentos_aprovados, antes.pagamentos_aprovados + 1);
+    assert.equal(Math.round((dep.faturamento_mensal - antes.faturamento_mensal) * 100), 2000);
+    // reconsulta manual de um pagamento pelo dono
+    fakeAprovar(p2.transacao, { transaction_amount: 59.9 });
+    const rc = await O.post('/api/central/pagamentos/' + p2.id + '/reconsultar', {});
+    assert.equal(rc.status, 200);
+    // histórico da conta registra a ativação por Pix
+    const h = (await O.get('/api/central/contas/' + est + '/historico')).d;
+    assert.ok(h.historico.some((x) => x.origem === 'pix' && x.para_status === 'ativa'));
+  });
+
+  await t('Central: gestão manual com confirmação, histórico, teste grátis e inteligência', async () => {
+    const O = new Cliente(); await O.post('/api/auth/login', { email: 'dono@teste.com', senha: 'senha-forte-3' });
+    const C = new Cliente(); await C.post('/api/auth/register', { nome_estabelecimento: 'Manual Central', nome: 'Man', email: 'man@teste.com', senha: 'senha-forte-9' });
+    const est = db.prepare("SELECT estabelecimento_id id FROM usuarios WHERE email = 'man@teste.com'").get().id;
+    assert.equal((await O.post('/api/central/assinaturas/' + est, { acao: 'ativar', plano: 'profissional' })).status, 400, 'sem confirmação');
+    assert.equal((await O.post('/api/central/assinaturas/' + est, { acao: 'ativar', plano: 'gratis', confirmar: true })).status, 400);
+    assert.equal((await O.post('/api/central/assinaturas/' + est, { acao: 'cancelar', confirmar: true })).status, 400, 'sem assinatura paga');
+    const ok = await O.post('/api/central/assinaturas/' + est, { acao: 'ativar', plano: 'profissional', dias: 10, confirmar: true });
+    assert.equal(ok.status, 200);
+    assert.equal((await C.get('/api/me')).d.assinatura.plano.id, 'profissional');
+    const pl = (await O.get('/api/central/planos')).d;
+    const a = pl.assinaturas.find((x) => x.id === est);
+    assert.equal(a.plano, 'profissional'); assert.equal(a.forma, 'Manual'); assert.equal(a.vence_em, L.addDias(L.hojeLocal('America/Fortaleza'), 10)); assert.ok(a.contratado_em);
+    assert.deepEqual(pl.planos.map((x) => x.id), ['gratis', 'basico', 'profissional', 'premium', 'teste']);
+    assert.equal((await O.post('/api/central/assinaturas/' + est, { acao: 'cancelar', confirmar: true })).status, 200);
+    assert.equal((await C.get('/api/me')).d.assinatura.status, 'gratis');
+    const h = (await O.get('/api/central/contas/' + est + '/historico')).d.historico;
+    assert.ok(h.length >= 2 && h.every((x) => x.autor === 'dono@teste.com'));
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM admin_log WHERE acao LIKE 'central_%'").get().n >= 2, 'ações registradas');
+    const dono = db.prepare("SELECT estabelecimento_id id FROM usuarios WHERE email = 'dono@teste.com'").get().id;
+    assert.equal((await O.post('/api/central/assinaturas/' + dono, { acao: 'cancelar', confirmar: true })).status, 400, 'dono protegido');
+    // teste grátis
+    const te = (await O.get('/api/central/teste')).d;
+    assert.ok(te.em_teste >= 1 && te.convertidos >= 1 && te.encerrados >= te.convertidos);
+    assert.equal(te.taxa_conversao_pct, Math.round((te.convertidos / te.encerrados) * 10000) / 100);
+    assert.ok(te.lista.every((x) => x.inicio && x.fim));
+    // inteligência: tudo baseado nos dados
+    const ia = (await O.get('/api/central/inteligencia')).d;
+    assert.ok(ia.resumo.length >= 3 && Array.isArray(ia.alertas) && ia.recomendacoes.length >= 1);
+    assert.ok(ia.recomendacoes.every((r) => r.base));
+  });
+
   console.log(`\n${passou} testes passaram${process.exitCode ? ' (com falhas)' : ' — tudo certo'}.`);
   servidor.close(); mpServidor.close(); fs.rmSync(tmp, { recursive: true, force: true });
   setTimeout(() => process.exit(process.exitCode || 0), 100);

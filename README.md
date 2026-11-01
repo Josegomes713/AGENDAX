@@ -54,3 +54,6 @@ Se `ADMIN_EMAILS` estiver vazio, o **primeiro** e-mail e senha digitados no link
 ## Escolha do plano
 O usuário decide quando quiser: pode ficar no plano **Grátis** (botão "Ficar no plano Grátis agora", que encerra o teste) ou pagar o Pix de um plano pago a qualquer momento, durante o teste ou depois. Assinatura paga em andamento não é cortada: ao vencer, a conta volta sozinha para o Grátis.
 
+
+## Central do Proprietário
+Menu lateral "Central do Proprietário" (coroa), só para o dono (ADMIN_EMAILS). Rotas `/api/central/*` conferem o dono no servidor (404 para os demais). Abas: visão geral, planos e assinaturas (ativar/cancelar manual com confirmação e histórico), pagamentos (Mercado Pago), ativação automática (registro, verificações, falhas e motivos), teste grátis, financeiro (só pagamentos aprovados) e Intelligence (regras sobre dados reais). Tabelas novas: `assinatura_historico`, `ativacoes_log`.

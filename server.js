@@ -948,6 +948,16 @@ const pagPublico = (p) => ({ id: p.id, plano: p.plano, valor: p.valor, status: p
   expira_em: p.expira_em, criado_em: p.criado_em, pago_em: p.pago_em, validade_ate: p.validade_ate, transacao: p.provedor_id });
 const agoraSql = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
 function expirarPendentes() { db.prepare("UPDATE pagamentos SET status = 'expirado' WHERE status = 'pendente' AND expira_em < ?").run(agoraSql()); }
+// Central do Proprietário: histórico de mudanças de assinatura e registro de ativações (nunca guardam dados de cartão/Pix nem chaves)
+function registrarHist(est, origem, antes, detalhe, autor) {
+  const dep = db.prepare('SELECT plano, assinatura_status FROM estabelecimentos WHERE id = ?').get(est);
+  db.prepare('INSERT INTO assinatura_historico (estabelecimento_id, origem, de_plano, de_status, para_plano, para_status, detalhe, autor) VALUES (?,?,?,?,?,?,?,?)')
+    .run(est, origem, antes.plano, antes.assinatura_status, dep.plano, dep.assinatura_status, String(detalhe || '').slice(0, 300), autor || '');
+}
+const instantaneo = (id) => db.prepare('SELECT plano, assinatura_status FROM estabelecimentos WHERE id = ?').get(id);
+function logAtiv(estId, pagId, origem, resultado, motivo) {
+  db.prepare('INSERT INTO ativacoes_log (estabelecimento_id, pagamento_id, origem, resultado, motivo) VALUES (?,?,?,?,?)').run(estId, pagId, origem, resultado, String(motivo || '').slice(0, 300));
+}
 
 get('/api/assinatura', { semBloqueio: true }, (c) => {
   expirarPendentes();
@@ -996,7 +1006,7 @@ post('/api/assinatura/pix', { semBloqueio: true }, async (c) => {
 });
 
 // Só a resposta oficial do provedor decide: confere referência, método Pix, moeda, valor e estado "approved".
-async function sincronizarPagamento(pag) {
+async function sincronizarPagamento(pag, origem = 'consulta') {
   const p = await PAG.buscar(pag.provedor_id);
   db.prepare('UPDATE pagamentos SET verificado_em = ? WHERE id = ?').run(Date.now(), pag.id);
   const confere = p.referencia === pag.referencia && p.metodo === 'pix' && p.moeda === 'BRL' && Math.abs(p.valor - pag.valor) < 0.005;
@@ -1004,15 +1014,22 @@ async function sincronizarPagamento(pag) {
     if (!confere) {
       db.prepare("UPDATE pagamentos SET status = 'divergente' WHERE id = ? AND status IN ('pendente','expirado')").run(pag.id);
       console.warn(`PAGAMENTO DIVERGENTE: conta ${pag.estabelecimento_id}, cobrança ${pag.id}, esperado R$ ${pag.valor}, provedor informou R$ ${p.valor} (${p.referencia})`);
+      logAtiv(pag.estabelecimento_id, pag.id, origem, 'divergente', `Plano NÃO liberado. Esperado: R$ ${pag.valor} via Pix (${pag.referencia}). Mercado Pago informou: R$ ${p.valor} via ${p.metodo} (${p.referencia}).`);
       return 'divergente';
     }
-    return ativarAssinatura(pag.id, p.aprovado_em) ? 'aprovado' : 'ja_processado';
+    if (ativarAssinatura(pag.id, p.aprovado_em, origem)) return 'aprovado';
+    const atual = db.prepare('SELECT status FROM pagamentos WHERE id = ?').get(pag.id).status;
+    logAtiv(pag.estabelecimento_id, pag.id, origem, 'duplicado', atual === 'aprovado' ? 'Aviso repetido ignorado: este pagamento já havia ativado o plano (sem ativação duplicada).' : `Pagamento aprovado no Mercado Pago, mas aqui está como "${atual}": nada foi ativado.`);
+    return 'ja_processado';
   }
-  if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(p.status)) db.prepare("UPDATE pagamentos SET status = ? WHERE id = ? AND status = 'pendente'").run(p.status === 'cancelled' ? 'cancelado' : 'rejeitado', pag.id);
+  if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(p.status)) {
+    const r = db.prepare("UPDATE pagamentos SET status = ? WHERE id = ? AND status = 'pendente'").run(p.status === 'cancelled' ? 'cancelado' : 'rejeitado', pag.id);
+    if (r.changes) logAtiv(pag.estabelecimento_id, pag.id, origem, 'recusado', `Mercado Pago informou "${p.status}". Plano pago não liberado.`);
+  } else if (origem !== 'consulta') logAtiv(pag.estabelecimento_id, pag.id, origem, 'pendente', `Mercado Pago informou "${p.status}": pagamento ainda não aprovado, plano pago NÃO liberado.`);
   return p.status;
 }
 // Idempotente: o UPDATE condicional garante que notificações duplicadas ou simultâneas ativem uma única vez.
-function ativarAssinatura(pagId, aprovadoEm) {
+function ativarAssinatura(pagId, aprovadoEm, origem = 'consulta') {
   return tx(() => {
     const pag = db.prepare('SELECT * FROM pagamentos WHERE id = ?').get(pagId);
     const est = db.prepare('SELECT * FROM estabelecimentos WHERE id = ?').get(pag.estabelecimento_id);
@@ -1021,7 +1038,10 @@ function ativarAssinatura(pagId, aprovadoEm) {
     const ate = L.addDias(renova ? est.assinatura_ate : hoje, DIAS_ASSINATURA);
     const r = db.prepare("UPDATE pagamentos SET status = 'aprovado', pago_em = ?, validade_ate = ? WHERE id = ? AND status IN ('pendente','expirado')").run(aprovadoEm ? String(aprovadoEm).slice(0, 19).replace('T', ' ') : agoraSql(), ate, pag.id);
     if (!r.changes) return false;
+    const antes = instantaneo(est.id);
     db.prepare("UPDATE estabelecimentos SET plano = ?, assinatura_status = 'ativa', assinatura_ate = ? WHERE id = ?").run(pag.plano, ate, est.id);
+    registrarHist(est.id, 'pix', antes, `Pix aprovado (cobrança ${pag.id}): plano ${pag.plano} até ${ate}${renova ? ' (renovação)' : ''}`, '');
+    logAtiv(est.id, pag.id, origem, 'ativado', `Pagamento aprovado e conferido na API do Mercado Pago. Plano ${pag.plano} ativo até ${ate}.`);
     notificar(est.id, 'assinatura', 'Pagamento confirmado ✅', `Plano ${PLANOS[pag.plano].nome} ativo até ${ate.slice(8, 10)}/${ate.slice(5, 7)}/${ate.slice(0, 4)}.`);
     return true;
   });
@@ -1049,15 +1069,23 @@ post('/api/webhooks/mercadopago', { publico: true }, async (c) => {
   if (PAG.modo() === 'desligado') throw erro(503, 'Pagamentos não configurados.');
   const dataId = String(c.query['data.id'] || (c.body.data && c.body.data.id) || '');
   const reqId = String(c.req.headers['x-request-id'] || '');
-  if (!PAG.assinaturaValida({ dataId, xSignature: c.req.headers['x-signature'], xRequestId: reqId })) throw erro(401, 'Assinatura inválida.');
+  if (!PAG.assinaturaValida({ dataId, xSignature: c.req.headers['x-signature'], xRequestId: reqId })) {
+    // fica registrado para o proprietário ver tentativas inválidas (limitado, para não encher o banco)
+    if (db.prepare("SELECT COUNT(*) n FROM webhook_eventos WHERE resultado = 'assinatura_invalida' AND recebido_em > datetime('now','-1 hour')").get().n < 100)
+      db.prepare('INSERT OR IGNORE INTO webhook_eventos (chave, provedor_id, resultado) VALUES (?,?,?)').run('inv|' + crypto.randomBytes(8).toString('hex'), dataId.slice(0, 40), 'assinatura_invalida');
+    throw erro(401, 'Assinatura inválida.');
+  }
   const tipo = String(c.body.type || c.query.type || c.body.topic || '');
   if (tipo && tipo !== 'payment') return { ok: true, ignorado: true };
   const pag = db.prepare('SELECT * FROM pagamentos WHERE provedor_id = ?').get(dataId);
   const chave = reqId + '|' + dataId + '|' + String(c.body.action || '');
   if (!pag) { db.prepare('INSERT OR IGNORE INTO webhook_eventos (chave, provedor_id, resultado) VALUES (?,?,?)').run(chave, dataId, 'desconhecido'); return { ok: true, ignorado: true }; }
   let resultado;
-  try { resultado = await sincronizarPagamento(pag); }
-  catch (e) { if (e.status) throw erro(502, 'Não foi possível confirmar com o provedor agora.'); throw e; } // o provedor tenta de novo
+  try { resultado = await sincronizarPagamento(pag, 'webhook'); }
+  catch (e) {
+    if (e.status) { logAtiv(pag.estabelecimento_id, pag.id, 'webhook', 'falha', 'Aviso válido recebido, mas não foi possível confirmar o pagamento na API do Mercado Pago (o Mercado Pago tenta de novo sozinho).'); throw erro(502, 'Não foi possível confirmar com o provedor agora.'); }
+    logAtiv(pag.estabelecimento_id, pag.id, 'webhook', 'falha', 'Erro interno ao processar o aviso do pagamento.'); throw e;
+  } // o provedor tenta de novo
   db.prepare('INSERT OR IGNORE INTO webhook_eventos (chave, provedor_id, resultado) VALUES (?,?,?)').run(chave, dataId, resultado);
   return { ok: true };
 });
@@ -1066,12 +1094,16 @@ post('/api/assinatura/gratis', { semBloqueio: true }, (c) => {
   const st = L.estadoAssinatura(c.est);
   if (st.status === 'ativa') throw erro(400, 'Sua assinatura paga continua até o vencimento. Depois dessa data, a conta volta sozinha para o plano Grátis.');
   if (st.status === 'gratis') return { ok: true, ja: true };
+  const antes = instantaneo(c.est.id);
   db.prepare("UPDATE estabelecimentos SET assinatura_status = 'cancelada' WHERE id = ?").run(c.est.id);
+  registrarHist(c.est.id, 'cliente', antes, 'Cliente escolheu o plano Grátis (encerrou o teste)', c.user.email);
   notificar(c.est.id, 'assinatura', 'Plano Grátis escolhido', 'Você está no plano Grátis. Seus dados continuam salvos e você pode assinar um plano pago quando quiser.');
   return { ok: true };
 });
 post('/api/assinatura/cancelar', { semBloqueio: true }, (c) => {
+  const antes = instantaneo(c.est.id);
   db.prepare("UPDATE estabelecimentos SET assinatura_status = 'cancelada' WHERE id = ?").run(c.est.id);
+  registrarHist(c.est.id, 'cliente', antes, 'Cliente cancelou a assinatura', c.user.email);
   notificar(c.est.id, 'assinatura', 'Assinatura cancelada', 'Você voltou para o plano Grátis. Seus dados continuam salvos.');
   return { ok: true };
 });
@@ -1199,7 +1231,7 @@ post('/api/admin/contas/:id', { semBloqueio: true }, (c) => {
   if (!e) throw erro(404, 'Conta não encontrada.');
   const dono = db.prepare('SELECT email FROM usuarios WHERE estabelecimento_id = ?').all(e.id).some((u) => ehDono(u.email));
   if (dono) throw erro(400, 'Contas de proprietário não podem ser alteradas por aqui.');
-  const b = c.body, acao = String(b.acao || ''); let detalhe = '';
+  const b = c.body, acao = String(b.acao || ''); let detalhe = ''; const antesAdm = instantaneo(e.id);
   if (acao === 'plano') {
     if (!PLANOS[b.plano] || b.plano === 'gratis') throw erro(400, 'Plano inválido.');
     db.prepare("UPDATE estabelecimentos SET plano = ?, assinatura_status = 'ativa', assinatura_ate = NULL WHERE id = ?").run(b.plano, e.id);
@@ -1221,11 +1253,15 @@ post('/api/admin/contas/:id', { semBloqueio: true }, (c) => {
     detalhe = sus ? 'conta suspensa' : 'conta reativada';
   } else throw erro(400, 'Ação inválida.');
   db.prepare('INSERT INTO admin_log (admin_email, estabelecimento_id, acao, detalhe) VALUES (?,?,?,?)').run(c.user.email, e.id, acao, detalhe);
+  registrarHist(e.id, 'proprietario', antesAdm, detalhe, c.user.email);
   return contaAdmin(db.prepare('SELECT * FROM estabelecimentos WHERE id = ?').get(e.id));
 });
 
 // Endereço público do app (usado no aviso de pagamento): vem da variável PUBLIC_URL.
 function urlPublica() { return (process.env.PUBLIC_URL || '').replace(/\/$/, ''); }
+
+// Central do Proprietário (rotas /api/central/*, só para o dono)
+require('./central').montar({ get, post, db, L, PLANOS, soDono, ehDono, erro, PAG, notificar, registrarHist, instantaneo, logAtiv, sincronizarPagamento, expirarPendentes, urlPublica, pagPublico });
 
 // ======================= Servidor HTTP =======================
 const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
