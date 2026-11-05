@@ -11,6 +11,7 @@
     $('v-reg').classList.toggle('hide', v !== 'reg');
     $('v-rec').classList.toggle('hide', v !== 'rec');
     $('v-cod').classList.toggle('hide', v !== 'cod');
+    $('v-red').classList.toggle('hide', v !== 'red');
     $('v-adm').classList.toggle('hide', v !== 'adm');
     history.replaceState(null, '', v === 'reg' ? '#cadastro' : '#');
     if (v === 'login') { const m = lembrada(); if (m && !$('l-email').value) $('l-email').value = m.email; setTimeout(() => ($('l-email').value ? $('l-senha') : $('l-email')).focus({ preventScroll: true }), 50); }
@@ -24,7 +25,18 @@
     $('l-email').value = mem.email;
   }
   $('b-outra').addEventListener('click', (e) => { e.preventDefault(); esquecer(); $('l-email').value = ''; $('lembrada').classList.add('hide'); $('lb-outra').classList.add('hide'); $('b-continuar').textContent = 'Entrar na minha conta'; });
-  mostrar(location.hash === '#cadastro' ? 'reg' : 'inicio');
+  // Link de redefinição vindo do e-mail (#redefinir=TOKEN): o token sai da barra de endereço na hora
+  let tokenRed = '';
+  const mt = /^#redefinir=([A-Za-z0-9_-]{20,100})$/.exec(location.hash);
+  if (mt) tokenRed = mt[1];
+  mostrar(tokenRed ? 'red' : location.hash === '#cadastro' ? 'reg' : 'inicio');
+  // recuperação por e-mail só aparece quando o servidor tem o envio de e-mails ligado
+  fetch('/api/auth/recursos').then((r) => r.json()).then((d) => {
+    if (!d.email) return;
+    $('rec-email-box').classList.remove('hide'); $('rec-cod-box').classList.add('hide'); $('rec-usar-email-p').classList.remove('hide');
+  }).catch(() => {});
+  $('rec-usar-cod').addEventListener('click', (e) => { e.preventDefault(); $('rec-email-box').classList.add('hide'); $('rec-cod-box').classList.remove('hide'); });
+  $('rec-usar-email').addEventListener('click', (e) => { e.preventDefault(); $('rec-cod-box').classList.add('hide'); $('rec-email-box').classList.remove('hide'); });
   // mostrar/ocultar senha
   document.querySelectorAll('input[type=password]').forEach((i) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'ver-senha'; b.textContent = 'Mostrar'; b.setAttribute('aria-label', 'Mostrar ou ocultar a senha');
@@ -73,6 +85,34 @@
     e.preventDefault();
     enviar('/api/auth/recuperar', { email: $('rc-email').value, codigo: $('rc-cod').value, nova: $('rc-nova').value }, $('b-rec'), $('e-rec'));
   });
+  $('f-esq').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const er = $('e-esq'), ok = $('ok-esq'), btn = $('b-esq'), em = $('es-email').value.trim();
+    er.classList.add('hide'); ok.classList.add('hide');
+    if (!EMAIL_OK.test(em)) { er.textContent = 'Digite um e-mail válido. Exemplo: nome@email.com'; er.classList.remove('hide'); return; }
+    btn.disabled = true;
+    try {
+      const r = await fetch('/api/auth/esqueci', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: em }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || 'Não foi possível enviar agora. Tente de novo.');
+      ok.textContent = 'Pronto! Se existir uma conta com esse e-mail, enviamos um link. Confira a caixa de entrada e o spam. O link vale por 1 hora.'; ok.classList.remove('hide');
+    } catch (x) { er.textContent = x.message; er.classList.remove('hide'); }
+    btn.disabled = false;
+  });
+  $('f-red').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const er = $('e-red'), btn = $('b-red'); er.classList.add('hide');
+    if ($('rd-nova').value.length < 8) { er.textContent = 'A senha precisa ter pelo menos 8 caracteres.'; er.classList.remove('hide'); return; }
+    btn.disabled = true;
+    try {
+      const r = await fetch('/api/auth/redefinir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tokenRed, nova: $('rd-nova').value }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || 'Não foi possível salvar. Tente de novo.');
+      tokenRed = ''; $('rd-nova').value = ''; mostrar('login');
+      $('ok-login').textContent = 'Senha alterada! Entre com a nova senha.'; $('ok-login').classList.remove('hide');
+    } catch (x) { er.textContent = x.message; er.classList.remove('hide'); }
+    btn.disabled = false;
+  });
   function invalido(erroEl, campo, msg) { erroEl.textContent = msg; erroEl.classList.remove('hide'); campo.focus(); return true; }
   $('f-login').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -104,5 +144,5 @@
     } catch (x) { er.textContent = x.message; er.classList.remove('hide'); btn.disabled = false; }
   });
   // já logado? vai direto ao painel
-  fetch('/api/me').then((r) => { if (r.ok) location.href = '/app'; }).catch(() => {});
+  if (!tokenRed) fetch('/api/me').then((r) => { if (r.ok) location.href = '/app'; }).catch(() => {});
 })();

@@ -79,8 +79,17 @@ function webhookMP(id, { assinar = true, reqId = 'req-' + crypto.randomUUID(), t
   return fetch(`${base}/api/webhooks/mercadopago?data.id=${id}&type=payment`, { method: 'POST', headers, body: JSON.stringify({ type: 'payment', action: 'payment.updated', data: { id: String(id) } }) });
 }
 
+// ---------- Provedor de e-mail FALSO (só nos testes): guarda o que seria enviado ----------
+const emails = [];
+const emailServidor = http.createServer((req, res) => {
+  let corpo = ''; req.on('data', (d) => { corpo += d; });
+  req.on('end', () => { emails.push({ url: req.url, chave: req.headers['api-key'], body: JSON.parse(corpo || '{}') }); res.writeHead(201, { 'Content-Type': 'application/json' }); res.end('{}'); });
+});
+const esperarEmails = async (n) => { for (let i = 0; i < 60 && emails.length < n; i++) await new Promise((r) => setTimeout(r, 50)); };
+
 (async () => {
   await new Promise((r) => servidor.listen(0, r));
+  await new Promise((r) => emailServidor.listen(0, r));
   await new Promise((r) => mpServidor.listen(0, r));
   process.env.MP_API_BASE = 'http://127.0.0.1:' + mpServidor.address().port;
   process.env.MP_ACCESS_TOKEN = 'TEST-token-de-teste'; process.env.MP_WEBHOOK_SECRET = MP_SEGREDO;
@@ -827,6 +836,56 @@ function webhookMP(id, { assinar = true, reqId = 'req-' + crypto.randomUUID(), t
     assert.ok((await anon.get(`/api/public/barbearia-alfa/horarios?servico_id=${servId}&data=${data}`)).d.slots.map((x) => x.hora).includes('12:00'));
   });
 
+  await t('e-mail: desligado por padrão; ligado confirma o e-mail e recupera a senha por link de uso único', async () => {
+    assert.equal((await anon.get('/api/auth/recursos')).d.email, false);
+    assert.equal((await anon.post('/api/auth/esqueci', { email: 'alfa@teste.com' })).status, 400, 'sem e-mail ligado, usa o código');
+    const antigo = new Cliente(); await antigo.post('/api/auth/register', { nome_estabelecimento: 'Sem Email', nome: 'Sem', email: 'sememail@teste.com', senha: 'senha-forte-1' });
+    assert.equal((await antigo.get('/api/me')).d.email.ligado, false);
+    // liga o envio (chave só no servidor)
+    process.env.EMAIL_API_BASE = 'http://127.0.0.1:' + emailServidor.address().port; process.env.BREVO_API_KEY = 'chave-brevo-teste'; process.env.EMAIL_FROM = 'contato@agendax.teste'; process.env.PUBLIC_URL = base;
+    assert.equal((await anon.get('/api/auth/recursos')).d.email, true);
+    emails.length = 0;
+    const X = new Cliente();
+    assert.equal((await X.post('/api/auth/register', { nome_estabelecimento: 'Verif Teste', nome: 'Vera Lucia', email: 'verif@teste.com', senha: 'senha-forte-1' })).status, 201);
+    await esperarEmails(1);
+    assert.equal(emails.length, 1); assert.equal(emails[0].chave, 'chave-brevo-teste'); assert.equal(emails[0].body.to[0].email, 'verif@teste.com'); assert.equal(emails[0].body.sender.email, 'contato@agendax.teste');
+    const link = /(http:\/\/[^"\s<]+\/api\/auth\/verificar\?token=[\w-]+)/.exec(emails[0].body.htmlContent)[1];
+    assert.ok(link.startsWith(base), 'link usa PUBLIC_URL');
+    let me = (await X.get('/api/me')).d; assert.equal(me.email.ligado, true); assert.equal(me.email.verificado, false);
+    assert.ok(!JSON.stringify(me).includes('email_verificado') || me.email.verificado === false);
+    const v1 = await fetch(link, { redirect: 'manual' }); assert.equal(v1.status, 302); assert.equal(v1.headers.get('location'), '/email.html?r=ok');
+    assert.equal((await X.get('/api/me')).d.email.verificado, true);
+    assert.equal((await fetch(link, { redirect: 'manual' })).headers.get('location'), '/email.html?r=erro', 'link de confirmação é de uso único');
+    assert.equal((await fetch(base + '/api/auth/verificar?token=falso', { redirect: 'manual' })).headers.get('location'), '/email.html?r=erro');
+    assert.equal((await X.post('/api/me/email/reenviar', {})).d.ja, true);
+    // esqueci a senha: mesma resposta exista a conta ou não
+    emails.length = 0;
+    const e1 = await anon.post('/api/auth/esqueci', { email: 'verif@teste.com' }), e2 = await anon.post('/api/auth/esqueci', { email: 'naoexiste@teste.com' });
+    assert.equal(e1.status, 200); assert.deepEqual(e1.d, e2.d); assert.equal(e1.status, e2.status);
+    await esperarEmails(1); await new Promise((r) => setTimeout(r, 200));
+    assert.equal(emails.length, 1, 'só quem tem conta recebe'); assert.equal(emails[0].body.to[0].email, 'verif@teste.com');
+    const token = /#redefinir=([\w-]+)/.exec(emails[0].body.htmlContent)[1];
+    assert.ok(!db.prepare('SELECT 1 FROM tokens_email WHERE token_hash = ?').get(token), 'o banco guarda só o hash do token');
+    assert.equal((await anon.post('/api/auth/redefinir', { token, nova: 'curta' })).status, 400, 'senha curta não gasta o link');
+    assert.equal((await anon.post('/api/auth/redefinir', { token: 'x'.repeat(43), nova: 'nova-senha-123' })).status, 400, 'token inventado');
+    assert.equal((await anon.post('/api/auth/redefinir', { token, nova: 'nova-senha-123' })).status, 200);
+    assert.equal((await anon.post('/api/auth/redefinir', { token, nova: 'outra-senha-123' })).status, 400, 'link de uso único');
+    assert.equal((await X.get('/api/me')).status, 401, 'sessões antigas encerradas');
+    assert.equal((await new Cliente().post('/api/auth/login', { email: 'verif@teste.com', senha: 'senha-forte-1' })).status, 401);
+    assert.equal((await new Cliente().post('/api/auth/login', { email: 'verif@teste.com', senha: 'nova-senha-123' })).status, 200);
+    // link vencido
+    emails.length = 0; await anon.post('/api/auth/esqueci', { email: 'verif@teste.com' }); await esperarEmails(1);
+    const t2 = /#redefinir=([\w-]+)/.exec(emails[0].body.htmlContent)[1];
+    db.prepare("UPDATE tokens_email SET expira_em = 1 WHERE tipo = 'senha'").run();
+    assert.equal((await anon.post('/api/auth/redefinir', { token: t2, nova: 'mais-uma-senha-1' })).status, 400, 'link vencido');
+    // reenviar confirmação para quem ainda não confirmou
+    const Y = new Cliente(); await Y.post('/api/auth/register', { nome_estabelecimento: 'Sem Conf', nome: 'Sem', email: 'semconf@teste.com', senha: 'senha-forte-1' });
+    emails.length = 0; assert.equal((await Y.post('/api/me/email/reenviar', {})).status, 200); await esperarEmails(1); assert.equal(emails[0].body.to[0].email, 'semconf@teste.com');
+    // desliga de novo: tudo volta ao normal (código de recuperação segue valendo)
+    delete process.env.BREVO_API_KEY; delete process.env.EMAIL_FROM; delete process.env.EMAIL_API_BASE; delete process.env.PUBLIC_URL;
+    assert.equal((await anon.get('/api/auth/recursos')).d.email, false);
+  });
+
   await t('Central do Proprietário: só o dono acessa (backend), sem segredos', async () => {
     const O = new Cliente(); await O.post('/api/auth/login', { email: 'dono@teste.com', senha: 'senha-forte-3' });
     const U = new Cliente(); await U.post('/api/auth/register', { nome_estabelecimento: 'Central Comum', nome: 'Comum', email: 'comum@teste.com', senha: 'senha-forte-7' });
@@ -927,6 +986,6 @@ function webhookMP(id, { assinar = true, reqId = 'req-' + crypto.randomUUID(), t
   });
 
   console.log(`\n${passou} testes passaram${process.exitCode ? ' (com falhas)' : ' — tudo certo'}.`);
-  servidor.close(); mpServidor.close(); fs.rmSync(tmp, { recursive: true, force: true });
+  servidor.close(); mpServidor.close(); emailServidor.close(); fs.rmSync(tmp, { recursive: true, force: true });
   setTimeout(() => process.exit(process.exitCode || 0), 100);
 })();

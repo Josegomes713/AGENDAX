@@ -72,6 +72,7 @@
             <h2>Entrar</h2>
             <p class="sub">Acesse o painel do seu estabelecimento.</p>
             <form id="f-login" novalidate>
+              <div id="ok-login" class="okmsg hide" role="status"></div>
               <div id="e-login" class="err hide" role="alert"></div>
               <div class="field"><label class="f" for="l-email">E-mail</label><input class="inp" id="l-email" type="email" autocomplete="email" required></div>
               <div class="field"><label class="f" for="l-senha">Senha</label><input class="inp" id="l-senha" type="password" autocomplete="current-password" required></div>
@@ -109,6 +110,17 @@
           </div>
           <div id="v-rec" class="hide">
             <h2>Recuperar senha</h2>
+            <div id="rec-email-box" class="hide">
+              <p class="sub">Digite o e-mail da sua conta e enviaremos um link para você escolher uma nova senha.</p>
+              <form id="f-esq" novalidate>
+                <div id="e-esq" class="err hide" role="alert"></div>
+                <div id="ok-esq" class="okmsg hide" role="status"></div>
+                <div class="field"><label class="f" for="es-email">E-mail</label><input class="inp" id="es-email" type="email" autocomplete="email" required></div>
+                <button class="btn primary" style="width:100%" id="b-esq">Enviar link por e-mail</button>
+              </form>
+              <p class="center mt-s muted small">Tem o código de recuperação? <a href="#" id="rec-usar-cod">Usar o código</a></p>
+            </div>
+            <div id="rec-cod-box">
             <p class="sub">Use o código de recuperação que apareceu quando você criou a conta (ou que gerou em Minha conta).</p>
             <form id="f-rec" novalidate>
               <div id="e-rec" class="err hide" role="alert"></div>
@@ -117,7 +129,19 @@
               <div class="field"><label class="f" for="rc-nova">Nova senha</label><input class="inp" id="rc-nova" type="password" autocomplete="new-password" minlength="8" required><div class="hint">Mínimo de 8 caracteres.</div></div>
               <button class="btn primary" style="width:100%" id="b-rec">Redefinir senha</button>
             </form>
+            <p id="rec-usar-email-p" class="center mt-s muted small hide">Prefere receber um link por e-mail? <a href="#" id="rec-usar-email">Receber link</a></p>
+            </div>
             <p class="center mt muted"><a href="#" data-go="login">Voltar para entrar</a></p>
+          </div>
+          <div id="v-red" class="hide">
+            <h2>Escolha uma nova senha</h2>
+            <p class="sub">Digite a nova senha da sua conta.</p>
+            <form id="f-red" novalidate>
+              <div id="e-red" class="err hide" role="alert"></div>
+              <div class="field"><label class="f" for="rd-nova">Nova senha</label><input class="inp" id="rd-nova" type="password" autocomplete="new-password" minlength="8" required><div class="hint">Mínimo de 8 caracteres.</div></div>
+              <button class="btn primary" style="width:100%" id="b-red">Salvar nova senha</button>
+            </form>
+            <p class="center mt muted"><a href="#" data-go="rec">Pedir um novo link</a></p>
           </div>
           <div id="v-cod" class="hide">
             <h2>Guarde este código</h2>

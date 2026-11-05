@@ -9,6 +9,10 @@ services:
         sync: false
       - key: MP_WEBHOOK_SECRET    # "assinatura secreta" do webhook, no painel do Mercado Pago
         sync: false
+      - key: BREVO_API_KEY        # chave de API do Brevo (envio de e-mails: confirmar e-mail e recuperar senha). Opcional
+        sync: false
+      - key: EMAIL_FROM           # e-mail remetente verificado no Brevo
+        sync: false
       - key: PUBLIC_URL           # endereço público do app, ex.: https://agenda-x.onrender.com
         sync: false
       - key: ADMIN_EMAILS         # seu e-mail (acesso total). Preencha no painel do Render.

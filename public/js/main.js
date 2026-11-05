@@ -47,11 +47,18 @@ window.atualizarBanner = async function () {
   try { AX.me = await api('/api/me'); } catch (_) { return; }
   const a = AX.me.assinatura, b = $('#banner');
   const ver = (t, cls) => `<a class="btn sm primary" href="#/assinatura">${t}</a>`;
-  if (a.status === 'trial') b.innerHTML = `<div class="banner trial"><span>Teste grátis com <b>tudo liberado</b>: ${a.dias_restantes} dia(s) restante(s). Depois você assina um plano ou continua no plano Grátis, com recursos limitados.</span>${ver('Ver planos')}</div>`;
-  else if (a.status === 'gratis') b.innerHTML = `<div class="banner bad"><span><b>Seu teste terminou.</b> Você está no plano Grátis, com recursos limitados. Assine um plano para liberar tudo de novo.</span>${ver('Assinar um plano')}</div>`;
-  else b.innerHTML = '';
+  let h = '';
+  if (a.status === 'trial') h = `<div class="banner trial"><span>Teste grátis com <b>tudo liberado</b>: ${a.dias_restantes} dia(s) restante(s). Depois você assina um plano ou continua no plano Grátis, com recursos limitados.</span>${ver('Ver planos')}</div>`;
+  else if (a.status === 'gratis') h = `<div class="banner bad"><span><b>Seu teste terminou.</b> Você está no plano Grátis, com recursos limitados. Assine um plano para liberar tudo de novo.</span>${ver('Assinar um plano')}</div>`;
+  if (AX.me.email && AX.me.email.ligado && !AX.me.email.verificado) h += `<div class="banner trial"><span><b>Confirme seu e-mail.</b> Enviamos um link para ${esc(AX.me.usuario.email)}. Assim você pode recuperar a senha por e-mail.</span><button class="btn sm" data-act="email-reenviar">Reenviar e-mail</button></div>`;
+  b.innerHTML = h;
   desenharMenu(); atualizarSino(AX.me.nao_lidas);
 };
+act('email-reenviar', async (btn) => {
+  btn.disabled = true;
+  try { await api('/api/me/email/reenviar', 'POST'); toast('E-mail enviado. Confira a caixa de entrada e o spam.', 'ok'); } catch (e) { toast(e.message, 'bad'); }
+  btn.disabled = false;
+});
 
 /* ---------- Notificações ---------- */
 let ultimoId = null;

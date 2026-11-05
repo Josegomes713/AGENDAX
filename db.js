@@ -225,6 +225,18 @@ INSERT INTO ativacoes_log (quando, estabelecimento_id, pagamento_id, origem, res
   FROM pagamentos p WHERE p.status = 'aprovado' AND NOT EXISTS (SELECT 1 FROM ativacoes_log a WHERE a.pagamento_id = p.id AND a.resultado = 'ativado');
 `);
 
+// E-mail: confirmação de endereço e links de recuperação de senha (guardamos só o hash do token)
+if (!colunaExiste('usuarios', 'email_verificado')) db.exec('ALTER TABLE usuarios ADD COLUMN email_verificado INTEGER NOT NULL DEFAULT 0');
+db.exec(`CREATE TABLE IF NOT EXISTS tokens_email (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  expira_em INTEGER NOT NULL,
+  usado_em INTEGER,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+
 function tx(fn) {
   db.exec('BEGIN');
   try { const r = fn(); db.exec('COMMIT'); return r; }

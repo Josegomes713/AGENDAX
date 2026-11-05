@@ -3,6 +3,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const EMAIL = require('./email');
 const { db, tx, DATA_DIR } = require('./db');
 const L = require('./lib');
 const PUSH = require('./push');
@@ -187,13 +188,13 @@ const quer = (v) => v === undefined || v === null ? true : !(v === false || v ==
 function carregarSessao(req) {
   const token = L.parseCookies(req.headers.cookie).ax_session;
   if (!token) return null;
-  const s = db.prepare(`SELECT u.id AS uid, u.nome AS unome, u.email, u.estabelecimento_id, s.expira_em
+  const s = db.prepare(`SELECT u.id AS uid, u.nome AS unome, u.email, u.email_verificado AS ev, u.estabelecimento_id, s.expira_em
     FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id WHERE s.token_hash = ?`).get(L.sha256(token));
   if (!s) return null;
   if (s.expira_em < Date.now()) { db.prepare('DELETE FROM sessoes WHERE token_hash = ?').run(L.sha256(token)); return null; }
   const est = db.prepare('SELECT * FROM estabelecimentos WHERE id = ?').get(s.estabelecimento_id);
   if (est && est.suspenso) return null;
-  return { user: { id: s.uid, nome: s.unome, email: s.email }, est };
+  return { user: { id: s.uid, nome: s.unome, email: s.email, email_verificado: !!s.ev }, est };
 }
 const SENHA_FALSA = L.hashSenha('senha-falsa-para-tempo-constante');
 
@@ -205,6 +206,68 @@ function novoCodigoRecuperacao(usuarioId) {
   db.prepare('UPDATE usuarios SET recup_hash = ? WHERE id = ?').run(L.sha256('rec|' + cod.replace(/-/g, '')), usuarioId);
   return cod;
 }
+
+// ---------- E-mail: confirmar endereço e recuperar senha por link ----------
+// Só funciona com chave de envio (BREVO_API_KEY ou RESEND_API_KEY), EMAIL_FROM e PUBLIC_URL definidos no servidor.
+// Os links usam sempre PUBLIC_URL (nunca o cabeçalho Host) e o token fica no hash (#) para não aparecer em logs.
+const emailLigado = () => EMAIL.ativo() && !!urlPublica();
+function criarTokenEmail(usuarioId, tipo, ttlMs) {
+  db.prepare('DELETE FROM tokens_email WHERE usuario_id = ? AND tipo = ? AND usado_em IS NULL').run(usuarioId, tipo);
+  const token = crypto.randomBytes(32).toString('base64url');
+  db.prepare('INSERT INTO tokens_email (usuario_id, tipo, token_hash, expira_em) VALUES (?,?,?,?)').run(usuarioId, tipo, L.sha256('tk|' + token), Date.now() + ttlMs);
+  return token;
+}
+// Consome o token de uma vez só (o UPDATE condicional impede uso duplo, mesmo com cliques simultâneos).
+function consumirToken(token, tipo) {
+  const h = L.sha256('tk|' + String(token || ''));
+  const t = db.prepare('SELECT * FROM tokens_email WHERE token_hash = ? AND tipo = ?').get(h, tipo);
+  if (!t || t.usado_em || t.expira_em < Date.now()) return null;
+  const r = db.prepare('UPDATE tokens_email SET usado_em = ? WHERE id = ? AND usado_em IS NULL').run(Date.now(), t.id);
+  return r.changes ? t : null;
+}
+function enviarVerificacao(u) {
+  const link = `${urlPublica()}/api/auth/verificar?token=${criarTokenEmail(u.id, 'verificar', 2 * 86400000)}`;
+  const m = EMAIL.modelo({ titulo: 'Confirme seu e-mail', nome: String(u.nome || '').split(' ')[0], intro: 'Falta só um passo: confirme que este e-mail é seu para proteger sua conta e poder recuperar a senha por aqui.', botao: 'Confirmar meu e-mail', link, rodape: 'O link vale por 2 dias. Se você não criou uma conta no AGENDA X, pode ignorar esta mensagem.' });
+  return EMAIL.enviar({ para: u.email, assunto: 'Confirme seu e-mail — AGENDA X', html: m.html, texto: m.texto });
+}
+get('/api/auth/recursos', { publico: true }, () => ({ email: emailLigado() }));
+get('/api/auth/verificar', { publico: true }, (c) => {
+  if (!L.limite('ver-ip:' + ipDe(c.req), 30, 900000)) throw erro(429, 'Muitas tentativas. Aguarde alguns minutos.');
+  const t = consumirToken(c.query.token, 'verificar');
+  if (t) db.prepare('UPDATE usuarios SET email_verificado = 1 WHERE id = ?').run(t.usuario_id);
+  return { __raw: true, status: 302, headers: { Location: '/email.html?r=' + (t ? 'ok' : 'erro'), 'Content-Type': 'text/plain; charset=utf-8' }, body: '' };
+});
+post('/api/me/email/reenviar', { semBloqueio: true }, (c) => {
+  if (!emailLigado()) throw erro(400, 'O envio de e-mails ainda não está ativado neste servidor.');
+  if (c.user.email_verificado) return { ok: true, ja: true };
+  if (!L.limite('ver-reenv:' + c.user.id, 3, 3600000)) throw erro(429, 'Você já pediu várias vezes. Tente de novo em uma hora.');
+  enviarVerificacao({ id: c.user.id, nome: c.user.nome, email: c.user.email });
+  return { ok: true };
+});
+// Resposta sempre igual, exista a conta ou não (não revela quem tem conta).
+post('/api/auth/esqueci', { publico: true }, (c) => {
+  const email = String(c.body.email || '').trim().toLowerCase();
+  if (!L.limite('esq-ip:' + ipDe(c.req), 10, 900000) || !L.limite('esq-em:' + email, 3, 3600000)) throw erro(429, 'Muitas tentativas. Aguarde um pouco e tente de novo.');
+  if (!emailLigado()) throw erro(400, 'A recuperação por e-mail ainda não está ativada. Use o código de recuperação.');
+  if (!L.emailValido(email)) throw erro(400, 'Digite um e-mail válido.');
+  const u = db.prepare('SELECT id, nome, email FROM usuarios WHERE email = ?').get(email);
+  if (u) {
+    const link = `${urlPublica()}/#redefinir=${criarTokenEmail(u.id, 'senha', 3600000)}`;
+    const m = EMAIL.modelo({ titulo: 'Redefinir sua senha', nome: String(u.nome || '').split(' ')[0], intro: 'Recebemos um pedido para redefinir a senha da sua conta no AGENDA X.', botao: 'Escolher nova senha', link, rodape: 'O link vale por 1 hora e só pode ser usado uma vez. Se não foi você, ignore esta mensagem: sua senha continua a mesma.' });
+    EMAIL.enviar({ para: u.email, assunto: 'Redefinir sua senha — AGENDA X', html: m.html, texto: m.texto });
+  }
+  return { ok: true };
+});
+post('/api/auth/redefinir', { publico: true }, (c) => {
+  if (!L.limite('red-ip:' + ipDe(c.req), 15, 900000)) throw erro(429, 'Muitas tentativas. Aguarde alguns minutos.');
+  const nova = String(c.body.nova || '');
+  if (nova.length < 8 || nova.length > 100) throw erro(400, 'A nova senha deve ter entre 8 e 100 caracteres.');
+  const t = consumirToken(c.body.token, 'senha');
+  if (!t) throw erro(400, 'Este link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".');
+  db.prepare('UPDATE usuarios SET senha_hash = ?, email_verificado = 1 WHERE id = ?').run(L.hashSenha(nova), t.usuario_id);
+  db.prepare('DELETE FROM sessoes WHERE usuario_id = ?').run(t.usuario_id);
+  return { ok: true };
+});
 post('/api/auth/recuperar', { publico: true }, (c) => {
   const email = String(c.body.email || '').trim().toLowerCase();
   const cod = String(c.body.codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -258,6 +321,7 @@ post('/api/auth/register', { publico: true }, (c) => {
     throw err;
   }
   c.headers['Set-Cookie'] = cookie; c.status = 201;
+  if (emailLigado()) { const novo = db.prepare('SELECT id, nome, email FROM usuarios WHERE email = ?').get(email); if (novo) enviarVerificacao(novo); }
   return { ok: true, codigo_recuperacao: codigoRec, usuario: { nome, email } };
 });
 
@@ -313,6 +377,7 @@ post('/api/auth/admin', { publico: true }, (c) => {
     u = db.prepare('SELECT * FROM usuarios WHERE email = ?').get(email);
   }
   garantirAcessoTotal(u.estabelecimento_id);
+  db.prepare('UPDATE usuarios SET email_verificado = 1 WHERE id = ?').run(u.id);
   db.prepare('UPDATE estabelecimentos SET suspenso = 0 WHERE id = ?').run(u.estabelecimento_id);
   c.headers['Set-Cookie'] = criarSessao(u.id, quer(c.body.manter));
   return { ok: true, admin: true };
@@ -333,7 +398,7 @@ get('/api/me', { semBloqueio: true }, (c) => {
   gerarAlertas(c.est);
   const naoLidas = db.prepare('SELECT COUNT(*) n FROM notificacoes WHERE estabelecimento_id = ? AND lida = 0').get(c.est.id).n;
   return {
-    usuario: c.user, admin: ehDono(c.user.email), estabelecimento: estPublico(c.est), nao_lidas: naoLidas,
+    usuario: { id: c.user.id, nome: c.user.nome, email: c.user.email }, email: { ligado: emailLigado(), verificado: !!c.user.email_verificado }, admin: ehDono(c.user.email), estabelecimento: estPublico(c.est), nao_lidas: naoLidas,
     assinatura: { ...c.assin, plano: L.planoEfetivo(c.est), plano_escolhido: PLANOS[c.est.plano], trial_ate: c.est.trial_ate },
   };
 });

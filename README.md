@@ -57,3 +57,6 @@ O usuário decide quando quiser: pode ficar no plano **Grátis** (botão "Ficar 
 
 ## Central do Proprietário
 Menu lateral "Central do Proprietário" (coroa), só para o dono (ADMIN_EMAILS). Rotas `/api/central/*` conferem o dono no servidor (404 para os demais). Abas: visão geral, planos e assinaturas (ativar/cancelar manual com confirmação e histórico), pagamentos (Mercado Pago), ativação automática (registro, verificações, falhas e motivos), teste grátis, financeiro (só pagamentos aprovados) e Intelligence (regras sobre dados reais). Tabelas novas: `assinatura_historico`, `ativacoes_log`.
+
+## E-mails (confirmar e-mail e recuperar senha)
+Opcional. Defina no servidor `BREVO_API_KEY` (ou `RESEND_API_KEY`), `EMAIL_FROM` (remetente verificado) e `PUBLIC_URL`. Sem isso, o app segue usando o código de recuperação. Os links vêm sempre de `PUBLIC_URL`, valem 2 dias (confirmar) e 1 hora (senha), são de uso único e só o hash fica no banco.

@@ -414,3 +414,5 @@ td.r,th.r{text-align:right}
 .hr-pausa .inp{width:auto;min-width:110px}
 @keyframes pausaAbre{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .cal-almoco{display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);pointer-events:none}
+
+.okmsg{margin:0 0 12px;padding:10px 12px;border-radius:var(--r-sm);background:var(--ok-bg);color:var(--ok);font-size:14px}
