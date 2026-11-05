@@ -48,6 +48,14 @@ function validarHorarios(h) {
     if (!L.horaValida(x.inicio) || !L.horaValida(x.fim)) throw erro(400, 'Horário inválido (use HH:MM).');
     if (ativo && L.toMin(x.inicio) >= L.toMin(x.fim)) throw erro(400, 'O horário de início deve ser antes do fim.');
     out[d] = { ativo, inicio: x.inicio, fim: x.fim };
+    // Horário de almoço (opcional): precisa ficar dentro do expediente do dia
+    if (ativo && x.pausa) {
+      const pa = x.pausa;
+      if (!L.horaValida(pa.inicio) || !L.horaValida(pa.fim)) throw erro(400, 'Horário de almoço inválido (use HH:MM).');
+      if (L.toMin(pa.inicio) >= L.toMin(pa.fim)) throw erro(400, 'O almoço deve começar antes de terminar.');
+      if (L.toMin(pa.inicio) < L.toMin(x.inicio) || L.toMin(pa.fim) > L.toMin(x.fim)) throw erro(400, 'O horário de almoço deve ficar dentro do expediente do dia.');
+      out[d].pausa = { inicio: pa.inicio, fim: pa.fim };
+    }
   }
   return out;
 }
@@ -127,7 +135,9 @@ function slotsLivres(est, prof, duracao, data, permitirPassado) {
   const ocupados = db.prepare(`SELECT inicio, fim FROM agendamentos WHERE profissional_id = ? AND status IN ('agendado','concluido')
     AND inicio < ? AND fim > ?`).all(prof.id, L.addDias(data, 1) + ' 00:00', data + ' 00:00');
   const out = [];
+  const pa = h.pausa ? { i: L.toMin(h.pausa.inicio), f: L.toMin(h.pausa.fim) } : null;
   for (let t = ini; t + duracao <= fim; t += passo) {
+    if (pa && t < pa.f && t + duracao > pa.i) continue; // horário de almoço: ninguém agenda por cima
     const si = `${data} ${L.hm(t)}`;
     const sf = L.addMin(data, L.hm(t), duracao);
     if (!permitirPassado && si <= agora) continue;

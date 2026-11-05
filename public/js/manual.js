@@ -30,7 +30,7 @@
         dica: 'Profissional com atendimentos no histórico é desativado em vez de excluído, para não bagunçar relatórios e comissões.' },
     ] },
     { ico: '🕐', cor: '#16a34a', t: 'Disponibilidade', secoes: [
-      { t: 'Definindo seus horários de atendimento', mock: telaDisp, passos: ['Abra <b>Disponibilidade</b> no menu.', 'Escolha o profissional no alto da tela.', 'Marque os dias em que ele atende e defina o horário de início e de fim de cada dia.', 'Escolha o intervalo entre horários (10 a 60 minutos) e toque em "Salvar disponibilidade".', 'Use "Copiar para todos os profissionais" para repetir os mesmos horários na equipe.'],
+      { t: 'Definindo seus horários de atendimento', mock: telaDisp, passos: ['Abra <b>Disponibilidade</b> no menu.', 'Escolha o profissional no alto da tela.', 'Marque os dias em que ele atende e defina o horário de início e de fim de cada dia.', 'Para marcar o <b>almoço</b>, toque em "Horário de almoço" embaixo do dia e escolha de que horas a que horas. Nesse período ninguém consegue agendar, nem pela página online.', 'Escolha o intervalo entre horários (10 a 60 minutos) e toque em "Salvar disponibilidade".', 'Use "Copiar para todos os profissionais" para repetir os mesmos horários na equipe.'],
         dica: 'Só os horários dentro do expediente ficam livres na agenda e na página de agendamento dos clientes.' },
     ] },
     { ico: '📅', cor: '#d99a1a', t: 'Agenda', secoes: [

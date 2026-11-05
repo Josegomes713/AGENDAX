@@ -52,11 +52,10 @@ function formProf(p) {
     <div class="field"><label class="f" for="p-cor">Cor na agenda</label><input class="inp" id="p-cor" type="color" value="${esc(p.cor)}" style="padding:3px;height:40px"></div>
     <div class="field full"><label class="f">Serviços que realiza</label><div class="chips">${svs.length ? svs.map((s) => `<label class="chip"><input type="checkbox" name="p-srv" value="${s.id}" ${p.servicos.includes(s.id) ? 'checked' : ''}>${esc(s.nome)}</label>`).join('') : '<span class="muted small">Cadastre serviços primeiro em Serviços.</span>'}</div></div>
     <div class="field full"><div class="row between"><label class="f" style="margin:0">Horários de trabalho</label><button type="button" class="btn sm ghost" data-act="hr-copiar">Copiar horário de segunda para os dias ativos</button></div>
-      <div class="hrs mt-s">${ORDEM_DIAS.map((d) => `<div class="hr-row"><label class="chk"><input type="checkbox" data-d="${d}" data-h="ativo" ${p.horarios[d].ativo ? 'checked' : ''}> ${DIAS[d]}</label><input class="inp" type="time" data-d="${d}" data-h="inicio" value="${p.horarios[d].inicio}" aria-label="Início ${DIAS[d]}"><input class="inp" type="time" data-d="${d}" data-h="fim" value="${p.horarios[d].fim}" aria-label="Fim ${DIAS[d]}"></div>`).join('')}</div></div>
+      <div class="hrs mt-s">${htmlHorarios(p)}</div></div>
     ${p.id ? `<label class="chk full"><input type="checkbox" id="p-ativo" ${p.ativo ? 'checked' : ''}> Profissional ativo (aparece na agenda e para clientes)</label>` : ''}</div>`,
     salvar: async (m) => {
-      const horarios = {};
-      for (let d = 0; d < 7; d++) horarios[d] = { ativo: $(`[data-d="${d}"][data-h=ativo]`, m).checked, inicio: $(`[data-d="${d}"][data-h=inicio]`, m).value, fim: $(`[data-d="${d}"][data-h=fim]`, m).value };
+      const horarios = lerHorarios(m);
       const corpo = { nome: $('#p-nome').value, telefone: $('#p-tel').value, comissao_percent: $('#p-com').value, cor: $('#p-cor').value, horarios, servicos: $$('input[name=p-srv]:checked', m).map((i) => i.value), ...dadosFoto(m, 'prof') };
       if (p.id) corpo.ativo = $('#p-ativo').checked;
       await api(p.id ? '/api/profissionais/' + p.id : '/api/profissionais', p.id ? 'PUT' : 'POST', corpo);
@@ -67,7 +66,8 @@ act('prof-novo', () => formProf());
 act('prof-editar', (b) => formProf(AX.profsCache.find((p) => String(p.id) === b.dataset.id)));
 act('hr-copiar', () => {
   const i = $('[data-d="1"][data-h=inicio]').value, f = $('[data-d="1"][data-h=fim]').value;
-  $$('[data-h=ativo]').forEach((c) => { if (c.checked) { const d = c.dataset.d; $(`[data-d="${d}"][data-h=inicio]`).value = i; $(`[data-d="${d}"][data-h=fim]`).value = f; } });
+  const alm = $('[data-d="1"][data-h=almoco]').checked, pi = $('[data-d="1"][data-h=pini]').value, pf = $('[data-d="1"][data-h=pfim]').value;
+  $$('[data-h=ativo]').forEach((c) => { if (c.checked) { const d = c.dataset.d; $(`[data-d="${d}"][data-h=inicio]`).value = i; $(`[data-d="${d}"][data-h=fim]`).value = f; $(`[data-d="${d}"][data-h=almoco]`).checked = alm; $(`[data-d="${d}"][data-h=pini]`).value = pi; $(`[data-d="${d}"][data-h=pfim]`).value = pf; $(`[data-pausa="${d}"]`).classList.toggle('hide', !alm); } });
 });
 act('prof-excluir', async (b) => {
   if (!(await confirmar('Excluir este profissional? Se já tiver atendimentos, será apenas desativado.', 'Excluir', true))) return;
@@ -367,6 +367,23 @@ act('conta-excluir', () => {
     salvar: async () => { await api('/api/conta/excluir', 'POST', { senha: $('#ex-senha').value, confirmar: $('#ex-conf').value }); location.href = '/'; } });
 });
 
+/* Horários de trabalho (com almoço opcional que abre embaixo de cada dia) — usado em Disponibilidade e no cadastro do profissional */
+function htmlHorarios(p) {
+  return ORDEM_DIAS.map((d) => { const x = p.horarios[d], pa = x.pausa;
+    return `<div class="hr-dia"><div class="hr-row"><label class="chk"><input type="checkbox" data-d="${d}" data-h="ativo" ${x.ativo ? 'checked' : ''}> ${DIAS[d]}</label><input class="inp" type="time" data-d="${d}" data-h="inicio" value="${x.inicio}" aria-label="Início ${DIAS[d]}"><input class="inp" type="time" data-d="${d}" data-h="fim" value="${x.fim}" aria-label="Fim ${DIAS[d]}"></div>
+      <div class="hr-almoco"><label class="chk small"><input type="checkbox" data-d="${d}" data-h="almoco" ${pa ? 'checked' : ''}> 🍽️ Horário de almoço</label>
+        <div class="hr-pausa ${pa ? '' : 'hide'}" data-pausa="${d}"><span class="muted small">de</span><input class="inp" type="time" data-d="${d}" data-h="pini" value="${pa ? pa.inicio : '12:00'}" aria-label="Início do almoço ${DIAS[d]}"><span class="muted small">até</span><input class="inp" type="time" data-d="${d}" data-h="pfim" value="${pa ? pa.fim : '13:00'}" aria-label="Fim do almoço ${DIAS[d]}"></div></div></div>`; }).join('');
+}
+function lerHorarios(raiz) {
+  const h = {};
+  for (let d = 0; d < 7; d++) {
+    h[d] = { ativo: $(`[data-d="${d}"][data-h=ativo]`, raiz).checked, inicio: $(`[data-d="${d}"][data-h=inicio]`, raiz).value, fim: $(`[data-d="${d}"][data-h=fim]`, raiz).value };
+    if ($(`[data-d="${d}"][data-h=almoco]`, raiz).checked) h[d].pausa = { inicio: $(`[data-d="${d}"][data-h=pini]`, raiz).value, fim: $(`[data-d="${d}"][data-h=pfim]`, raiz).value };
+  }
+  return h;
+}
+document.addEventListener('change', (e) => { const t = e.target; if (t && t.dataset && t.dataset.h === 'almoco') { const b = document.querySelector(`[data-pausa="${t.dataset.d}"]`); if (b) b.classList.toggle('hide', !t.checked); } });
+
 /* =============== DISPONIBILIDADE DE HORÁRIOS =============== */
 AX.disp = { prof: 0 };
 VIEWS.disponibilidade = async (el) => {
@@ -379,16 +396,12 @@ VIEWS.disponibilidade = async (el) => {
   el.innerHTML = `<div class="card"><h3>Disponibilidade de horários</h3>
     <p class="muted small" style="margin-top:-6px">Marque os dias e horários em que cada profissional atende. Só esses horários ficam livres na agenda.</p>
     <div class="row mt-s" style="gap:8px;flex-wrap:wrap">${ativos.map((x) => `<button class="btn sm ${x.id === p.id ? 'primary' : ''}" data-act="disp-prof" data-id="${x.id}">${esc(x.nome)}</button>`).join('')}</div>
-    <div class="hrs mt">${ORDEM_DIAS.map((d) => `<div class="hr-row"><label class="chk"><input type="checkbox" data-d="${d}" data-h="ativo" ${p.horarios[d].ativo ? 'checked' : ''}> ${DIAS[d]}</label><input class="inp" type="time" data-d="${d}" data-h="inicio" value="${p.horarios[d].inicio}" aria-label="Início ${DIAS[d]}"><input class="inp" type="time" data-d="${d}" data-h="fim" value="${p.horarios[d].fim}" aria-label="Fim ${DIAS[d]}"></div>`).join('')}</div>
+    <div class="hrs mt">${htmlHorarios(p)}</div>
     <div class="field mt"><label class="f" for="d-passo">Intervalo entre horários</label><select class="inp" id="d-passo" style="max-width:220px">${[10, 15, 20, 30, 45, 60].map((n) => `<option value="${n}" ${n === cfg.intervalo_slots ? 'selected' : ''}>${n} minutos</option>`).join('')}</select><div class="hint">Vale para todos os profissionais.</div></div>
     <div class="row mt"><button class="btn primary" data-act="disp-salvar" data-id="${p.id}">Salvar disponibilidade</button><button class="btn" data-act="disp-copiar" data-id="${p.id}">Copiar para todos os profissionais</button></div></div>`;
 };
 act('disp-prof', (b) => { AX.disp.prof = parseInt(b.dataset.id, 10); AX.recarregar(); });
-function lerHorariosTela() {
-  const h = {};
-  for (let d = 0; d < 7; d++) h[d] = { ativo: $(`[data-d="${d}"][data-h=ativo]`).checked, inicio: $(`[data-d="${d}"][data-h=inicio]`).value, fim: $(`[data-d="${d}"][data-h=fim]`).value };
-  return h;
-}
+function lerHorariosTela() { return lerHorarios(document); }
 async function gravarHorarios(p, horarios) {
   await api('/api/profissionais/' + p.id, 'PUT', { nome: p.nome, telefone: p.telefone, comissao_percent: p.comissao_percent, cor: p.cor, horarios, servicos: p.servicos });
 }

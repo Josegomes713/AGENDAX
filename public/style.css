@@ -406,3 +406,11 @@ td.r,th.r{text-align:right}
 .cp-al{margin:8px 0;padding:10px 12px;border-radius:8px;background:var(--info-bg);border-left:4px solid var(--info)} .cp-al.alto{background:var(--bad-bg);border-color:var(--bad)} .cp-al.medio{background:var(--warn-bg);border-color:var(--warn)}
 .cp-ia ul{margin:6px 0 0;padding-left:20px}
 @media (max-width:700px){.cp-hero{padding:16px}.cp-hero h2{font-size:18px}}
+
+/* Almoço nos horários */
+.hr-dia{display:grid;gap:4px;padding-bottom:6px;border-bottom:1px dashed var(--line)} .hr-dia:last-child{border-bottom:0}
+.hr-almoco{padding-left:2px} .hr-almoco .chk{padding:0;font-size:13px;color:var(--muted)}
+.hr-pausa{display:flex;align-items:center;gap:8px;margin-top:6px;padding:8px 10px;background:var(--p-50);border:1px solid var(--p-100);border-radius:var(--r-sm);animation:pausaAbre .18s ease-out}
+.hr-pausa .inp{width:auto;min-width:110px}
+@keyframes pausaAbre{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.cal-almoco{display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);pointer-events:none}

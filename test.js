@@ -804,6 +804,29 @@ function webhookMP(id, { assinar = true, reqId = 'req-' + crypto.randomUUID(), t
     assert.ok((await O.get('/api/admin/resumo')).d.historico.length >= 4, 'histórico das ações');
   });
 
+  await t('horário de almoço: bloqueia horários na agenda online e interna, valida dentro do expediente', async () => {
+    const pr = (await A.get('/api/profissionais')).d.find((x) => x.id === profId);
+    const base = JSON.parse(JSON.stringify(pr.horarios));
+    const com = (pausa) => { const h = JSON.parse(JSON.stringify(base)); for (const d of Object.keys(h)) if (h[d].ativo) h[d].pausa = pausa; return h; };
+    const salvar = (h) => A.put(`/api/profissionais/${profId}`, { nome: pr.nome, telefone: pr.telefone, comissao_percent: pr.comissao_percent, cor: pr.cor, horarios: h, servicos: pr.servicos });
+    assert.equal((await salvar(com({ inicio: '13:00', fim: '12:00' }))).status, 400, 'fim antes do início');
+    assert.equal((await salvar(com({ inicio: '07:00', fim: '08:00' }))).status, 400, 'fora do expediente');
+    assert.equal((await salvar(com({ inicio: '12:xx', fim: '13:00' }))).status, 400, 'hora inválida');
+    const ok = await salvar(com({ inicio: '12:00', fim: '13:00' })); assert.equal(ok.status, 200);
+    assert.equal((await A.get('/api/profissionais')).d.find((x) => x.id === profId).horarios[L.diaSemana(data)].pausa.inicio, '12:00', 'almoço é guardado');
+    const horas = (await anon.get(`/api/public/barbearia-alfa/horarios?servico_id=${servId}&data=${data}`)).d.slots.map((x) => x.hora);
+    for (const h of ['11:30', '12:00', '12:30']) assert.ok(!horas.includes(h), h + ' deve estar bloqueado (almoço)');
+    assert.ok(horas.includes('11:00') && horas.includes('13:00'), 'antes e depois do almoço continuam livres');
+    const interna = (await A.get(`/api/disponibilidade?servico_id=${servId}&profissional_id=${profId}&data=${data}`)).d.slots;
+    assert.ok(!interna.includes('12:00') && interna.includes('13:00'));
+    // tentativa de agendar no almoço pela página pública é recusada
+    const r = await anon.post('/api/public/barbearia-alfa/agendar', { nome: 'Teste Almoço', telefone: '85999990000', servico_id: servId, data, hora: '12:00' });
+    assert.ok(r.status >= 400, 'não agenda no almoço');
+    // sem almoço, volta ao normal
+    assert.equal((await salvar(base)).status, 200);
+    assert.ok((await anon.get(`/api/public/barbearia-alfa/horarios?servico_id=${servId}&data=${data}`)).d.slots.map((x) => x.hora).includes('12:00'));
+  });
+
   await t('Central do Proprietário: só o dono acessa (backend), sem segredos', async () => {
     const O = new Cliente(); await O.post('/api/auth/login', { email: 'dono@teste.com', senha: 'senha-forte-3' });
     const U = new Cliente(); await U.post('/api/auth/register', { nome_estabelecimento: 'Central Comum', nome: 'Comum', email: 'comum@teste.com', senha: 'senha-forte-7' });
